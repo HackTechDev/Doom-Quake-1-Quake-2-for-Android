@@ -1,0 +1,153 @@
+Quake DeveLS - JetPack
+
+Author: Muce
+Difficulty: Medium
+
+
+Death from above
+
+How about we give our marine a jetpack for those hard to reach spots on your favorite map. Were going to start by adding two new variables to the client structure, so head on down to the bottom of the gclient_t structure at about line 835 of g_local.h and edit it to look like this :
+
+	float	   respawn_time;           // can respawn when time > this
+
+	// MUCE: added for jetpack thrusting.
+	qboolean        thrusting;              // 1 on 0 off
+	float           next_thrust_sound;
+} gclient_t;
+
+Now we need to add a new command to g_cmds.c right above ClientCommand()
+
+/*
+=================
+Cmd_Thrust_f
+
+MUCE:
+To set jetpack on or off
+=================
+*/
+void Cmd_Thrust_f (edict_t *ent)
+{
+	char    *string;
+
+	string=gi.args();
+
+	if (Q_stricmp ( string, "on") == 0)
+	{
+		ent->client->thrusting=1;
+		ent->client->next_thrust_sound=0;
+	}
+	else
+	{
+ 		ent->client->thrusting=0;
+	}
+}
+
+Also, add these lines to the ClientCommand function so we can call our new function:
+
+	else if (Q_stricmp (cmd, "wave") == 0)
+		Cmd_Wave_f (ent);
+
+	// MUCE:  added to jetpack thrust!
+	else if (Q_stricmp(cmd, "thrust") == 0 )
+		Cmd_Thrust_f (ent);
+
+This sets it so that if we type "cmd thrust on" in the console, we set ent->client->thrust to true and if we type "cmd thrust " ent->client->thrust is set to false.
+
+Thrusting (!)
+
+Good. Now to make a think routine for the jetpack. I suggest making a new file called jetpack.c and adding it to your project. The contents of the file are as such:
+
+
+// MUCE:  JetPack addition!
+
+#include "g_local.h"
+
+/*
+=================
+ApplyThrust
+
+MUCE:
+To add thrusting velocity to player
+=================
+*/
+
+void ApplyThrust (edict_t *ent)
+{
+
+	vec3_t forward, right;
+	vec3_t pack_pos, jet_vector;
+
+	//MUCE:  add thrust to character
+
+	if (ent->velocity[2] < -500)
+		ent->velocity[2]+=((ent->velocity[2])/(-5));
+	else if (ent->velocity[2] < 0)
+		ent->velocity[2] += 100; 
+	else
+		ent->velocity[2]+=((1000-ent->velocity[2])/8);
+
+	//MUCE:  add sparks
+
+	AngleVectors(ent->client->v_angle, forward, right, NULL);
+	VectorScale (forward, -7, pack_pos);
+	VectorAdd (pack_pos, ent->s.origin, pack_pos);
+	pack_pos[2] += (ent->viewheight);
+
+	VectorScale (forward, -50, jet_vector);
+
+	gi.WriteByte (svc_temp_entity);
+	gi.WriteByte (TE_SPARKS);
+	gi.WritePosition (pack_pos);
+	gi.WriteDir (jet_vector);
+	gi.multicast (pack_pos, MULTICAST_PVS);
+
+	//MUCE: add sound 
+
+	if (ent->client->next_thrust_sound < level.time)
+	{
+		gi.sound (ent, CHAN_BODY, gi.soundindex("weapons/rockfly.wav"), 1, ATTN_NORM, 0);
+		ent->client->next_thrust_sound=level.time+1.0;
+	}
+}
+
+What it does: ent->velocity[2] holds the current velocity of the player in the "z" or up direction. All's I'm doing is simply adding to the current velocity. Well, I broke it up into different cases to provide for a more realistic jetpack effect. Mess around with the numbers some if you want to customize it for yourself.
+
+The next part just adds the effect of sparks coming out of your back to make it look like a jetpack. This part of the code is copied nearly exactly from the THROWUP tutorial (Thanks SumFuka!).
+
+Finally we play the "rocket flying" sound every second (the .wav file is about a second long). Remember when we called "cmd thrust on" we set next_thrust_sound to zero, that way we play the sound the first time we run through the function.
+
+Think.
+
+One last thing... we have to call the think routine. So, in p_client.c in the ClientThink routine around line 960 we'll add these lines:
+
+		level.exitintermission = true;
+		return;
+	}
+
+	// MUCE:  Think for thrusting
+	if (ent->client->thrusting) 
+	       ApplyThrust (ent);
+
+We're done.
+
+And that's it. Compile it, run it, and add these two aliases:
+
+        Alias +thrust "cmd thrust on"
+        Alias -thrust "cmd thrust off"
+
+Then bind +thrust to some key and Jet away! Once again, thanks goes out to SumFuka for the throwup code and for his help on helping me through my +thrust problem.
+
+(One last note, if you're really keen you can use the 'stuffcmd' function (get it from Q_DEVELS.C in the downloads section at PlanetQuake QDeveLS) to bind the aliases for thrust on and off. Remember to use \" whenever you want a " in your string. E.g.
+
+	stuffcmd(ent, "alias +thrust \"cmd thrust on\");
+
+Put that in the ClientConnect function...)
+
+Tutorial by Muce with a little contribution from SumFuka
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question? Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for there great help and support with hosting.
+Best viewed with Netscape 4

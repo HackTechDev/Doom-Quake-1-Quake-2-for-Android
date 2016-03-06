@@ -1,0 +1,47 @@
+
+All the key are configurable. Go into the Quake internal menu ("customize controls")
+
+(or modify the text file /sdcard/baseq2/config.cfg )
+
+For the phones with a physical keyboard (like Motorola Droid), it is possible to have all the controls by remapping the keys of the physical keyboard.
+
+(the configuration is saved automatically, therefor you have to do it only the first time )
+
+For the phones without a physical keyboard (like Samsung Galaxy), it is possible to use the virtual key, located on the touchscreen :
+
+-----------------------
+| AUX1  | AUX2 | AUX3 |
+|--------------|------|
+|              | AUX6 |
+|     VIEW     |------|
+|              | AUX9 |
+-----------------------
+
+With the default configuration  (see the screen "tools" ..), you get the following mapping :
+
+AUX1 => free
+AUX2 => free
+AUX3 => next weapon
+AUX6 => jump
+AUX9 => crouch
+
+Regarding the VIEW area of the touchscreen, it can be used for precise aiming :
+press the VIEW are, moves are stopped, and controle the crosshair with the finger.
+
+Then for shooting, press the center button of the DPAD ( = ENTER usually mapped on +attack)
+
+To move, you can use either the arrow from the DPAD, or the sensors :
+
+- tilt your phone to move forward or backward 
+- rotate your phone on the side in order to turn right or left
+
+The more you tilt, the faster you move ...
+
+In order to stop moving, keep your phone with an inclination of around 50 degrees 
+(you need to get used to  ..)
+
+IMPORTANT : each time you press the view area, the current inclination is taken as reference for the next moves 
+
+
+(if the mode "sensor" bothers you, you can disengage it in the screen "settings")
+

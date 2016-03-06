@@ -1,0 +1,319 @@
+Maj.Bitch Satalite Nuke Launcher 
+
+Author: Maj.Bitch 
+Difficulty: Medium 
+
+ 
+
+  
+
+ 
+  Satellite Nuke Launcher!
+
+ 
+
+I've played around with satellite dish in the past just
+
+to see what it looked like.. But, I also wanted to make
+
+some kind of weapon out of it. So, I took the dish model
+
+along with the standard issue 'bomb' model and put the
+
+two together to get this new weapon. The Satellite Dish
+
+Nuke Launcher!! 
+
+What I did not do:
+
+I've left out any code for what the costs will be to have
+
+one of these babies because I figured that (since it might
+
+not play well in deathmatch mode) it will probably find
+
+its best use in those mods where there is an entrenched 
+
+team behind some kind of high wall or fortress type setup.
+
+So, you can take the code and put in your own costs for
+
+getting one of these in place.
+
+How it works:
+
+Assuming that you've paid the price for one of these dishes,
+
+you face in the direction that you want the dish to shoot at
+
+and you press your aliased key and a satellite dish pops out
+
+in front of you and lands squarely on the ground facing in
+
+the desired direction. You tell it (in the code) how many
+
+nukes you want it to toss in that direction. Once in place,
+
+every 5 seconds, a large bomb will get tossed in the desired
+
+direction at random velocities with forward and up vectors
+
+randomized so that the bombs don't land on the same spot each
+
+time. The bomb's touch function is the the standard issue
+
+Quake2 bfg_touch() so the bombs impact with the same force
+
+and colorful sprite stuff as the regular bfg fireball taking
+
+out any players within the damage zone (which is relatively
+
+large!). After the desired number of nukes have been lobbed
+
+over the wall, then the satellite dish disappears on its own.
+
+GREAT for those mods which have entrenched enemy behind 
+
+some kind of fortress or wall! Place one of these babies
+
+facing in the desire launch direction and let it lob some 
+
+nukes over the top of their walls and splatter the whole lot
+
+of them at once!!
+
+Okay, let's get started!
+
+Add in the blue code and take out any pink code.
+
+Open up your g_cmds.c file and go near the bottom of your
+
+ClientCommand() function and add the following as shown
+
+by example..
+
+
+
+ 
+
+ 
+
+---------- IF-ELSE STATEMENTS --------
+
+else if (Q_stricmp(cmd, "decoy") == 0 )
+
+SP_Decoy(ent);
+
+else if (Q_stricmp(cmd, "drone") == 0 )
+
+Cmd_LaserDrone_f(ent);
+
+else if (Q_stricmp(cmd, "teleport") == 0)
+
+Cmd_Teleport_f(ent);
+
+----------- ADD THESE LINES ------
+
+else if (Q_stricmp(cmd, "satellite") == 0)
+Cmd_Satellite_Nuke(ent);
+
+else if .....
+
+ 
+
+
+
+This will place one of the satellite dishes facing
+
+in the desire direction.
+
+Add this prototype declaration to the top of you g_cmds.c
+
+file:
+
+
+
+ 
+
+void Cmd_Satellite_Nuke(edict_t *ent);
+
+ 
+
+
+
+Add the following code to you g_weapons.c file as shown from
+
+start to end..
+
+
+
+ 
+
+ 
+
+//======================================================
+
+//============ SATELLITE DISH NUKE TOSSER ==============
+
+//======================================================
+
+//======================================================
+
+void Lob_Nuke_Missile(edict_t *dish){
+
+edict_t *nukebomb=NULL;
+
+vec3_t forward,up;
+
+AngleVectors(dish->s.angles, forward, NULL, up);
+
+nukebomb=G_Spawn();
+
+nukebomb->owner=dish->activator;
+
+nukebomb->movetype=MOVETYPE_TOSS;
+
+nukebomb->clipmask=MASK_SHOT;
+
+nukebomb->solid=SOLID_BBOX;
+
+nukebomb->s.effects=EF_ROCKET;
+
+VectorCopy(dish->s.origin, nukebomb->s.origin);
+
+VectorMA(nukebomb->s.origin, 50, up, nukebomb->s.origin);
+
+VectorMA(nukebomb->s.origin, 25, forward, nukebomb->s.origin);
+
+VectorCopy(dish->s.angles, nukebomb->s.angles);
+
+VectorCopy(forward, nukebomb->movedir);
+
+VectorClear(nukebomb->velocity);
+
+VectorMA(nukebomb->velocity, 2000+(rand()%500), forward, nukebomb->velocity);
+
+VectorMA(nukebomb->velocity, 800+(rand()%800), up, nukebomb->velocity);
+
+VectorSet(nukebomb->mins,-10,-10,-10);
+
+VectorSet(nukebomb->maxs,10,10,10);
+
+nukebomb->s.modelindex=gi.modelindex("models/objects/bomb/tris.md2");
+
+nukebomb->radius_dmg=200; // Same as BFG Fireball
+
+nukebomb->dmg_radius=1000;
+
+nukebomb->touch=bfg_touch;
+
+gi.linkentity(nukebomb);
+
+// Number of Nukes tossed!!
+
+dish->wait += 1;
+
+if (dish->wait > dish->delay) {
+
+dish->think=G_FreeEdict;
+
+dish->nextthink=level.time + 1.0; }
+
+else
+
+dish->nextthink=level.time + 5.0;
+
+}
+
+//======================================================
+
+void Position_Satellite_Dish(edict_t *ent, int count){
+
+edict_t *dish=NULL;
+
+vec3_t forward;
+
+AngleVectors(ent->s.angles, forward, NULL, NULL);
+
+dish=G_Spawn();
+
+dish->owner=NULL;
+
+dish->activator=ent;
+
+dish->movetype=MOVETYPE_TOSS;
+
+dish->clipmask=MASK_SHOT;
+
+dish->solid=SOLID_BBOX;
+
+dish->takedamage=DAMAGE_NO;
+
+dish->s.effects=0;
+
+VectorCopy(ent->s.angles, dish->s.angles);
+
+VectorCopy(ent->s.origin, dish->s.origin);
+
+VectorMA(dish->s.origin, 80, forward, dish->s.origin);
+
+VectorClear(dish->velocity);
+
+VectorSet(dish->mins,-20,-20,0);
+
+VectorSet(dish->maxs, 20, 20,30);
+
+dish->s.modelindex=gi.modelindex("models/objects/satellite/tris.md2");
+
+dish->wait=0; // Num Missiles Fired
+
+dish->delay=(float)counter; // Total Missiles to Launch
+
+dish->touch=NULL;
+
+dish->think=Lob_Nuke_Missile;
+
+dish->nextthink=level.time + 5;
+
+gi.linkentity(dish);
+
+}
+
+//==========================================================
+
+void Cmd_Satellite_Nuke(edict_t *ent) {
+
+// Set it to toss 5 missiles..
+
+Position_Satellite_Dish(ent,5);
+
+}
+
+ 
+
+
+
+Lastly..
+
+Remember to bind a key in your Autoexec.cfg file as shown
+
+by example below:
+
+bind s "satellite" 
+
+That's it!! Now get out there and HANG THE BASTARDS!
+
+Have Fun!!
+
+philip
+
+ 
+
+ 
+
+ 
+
+  
+ 
+
+  

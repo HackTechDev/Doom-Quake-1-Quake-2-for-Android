@@ -1,0 +1,147 @@
+Quake DeveLS - Updated Cloaking Device
+
+Author: Chris Fry
+Difficulty: Easy / Medium
+
+Hi. This is an update for John Rittenhouse's Cloaking Device. The original cloaking device was good, but as soon as you stopped moving, you cloaked. This was sometimes annoying and made it very unbalanced in Deathmatch and Co-op mode as you could stay cloaked forever. This soon turned Quake 2 into a camping and sniping match, which can get very boring. :(
+
+I've updated the cloaking device so it now takes cells to cloak - this means that once you run out of cells, the cloak deactivates. Also, i've darkened the view when you cloak, to give a sort of "silent running" feeling. When the cells run out, this also makes your screen flash, letting you know that the cloak is enabled, but just can't activate. The final update I made was to take 1.5 seconds to turn on, once you stopped moving. Hope you like it. The values are somewhat customisable in glocals.h, as shown below in my tutorial:
+
+Tutorial
+
+Ok. To start with, we need a mechanism for enabling and disabling the cloaking device. To do this, put the following bit of code in the file "g_cmds.c", at the bottom. This lets you type in "cloak" from the console (or bind it to a key - eg, the letter 'c') to toggle the cloak on and off.
+
+
+	else if (Q_stricmp (cmd, "wave") == 0)
+		Cmd_Wave_f (ent);
+	// new command for cloaking
+	else if (Q_stricmp (cmd, "cloak") == 0)
+		Cmd_Cloak_f (ent);
+
+Now we have the mechanism for turning on and off, we need to add the bit of code this calls. Put the following code further up in the same file - I put mine just above 'Cmd_Say_f'. This just toggles the device on and off, resetting a few variables as it does, then tells you the current status.
+
+
+/*
+==================
+Cmd_Cloak_f
+==================
+*/
+
+void Cmd_Cloak_f (edict_t *ent)
+{
+	if (ent->client->cloakable ^= 1)
+	{
+		gi.centerprintf (ent, "Motion Cloaking Enabled!\n");
+		ent->client->cloaktime = level.time + CLOAK_ACTIVATE_TIME;
+		ent->client->cloaking = true;
+		ent->client->cloakdrain = 0;
+	}
+	else
+	{
+		gi.centerprintf (ent, "Motion Cloaking Disabled!\n");
+		ent->svflags &= ~SVF_NOCLIENT;
+		ent->client->cloaking = false;
+	}
+}
+
+Note the line "if (ent->client->cloakable ^= 1)". This is responsible for toggling the variable, and checking the 'if' statement at the same time. For more information, check Jonathan Benson (Hardware)'s Low-Light Vision tutorial. It's explained in there.
+
+Ok. Now go to the file "p_client.c" and go to the 'clientthink' procedure. Now add the following code above the line 'gi.linkentity (ent)'.
+
+
+	// handle cloaking ability
+	if (ent->client->cloakable)
+	{
+		if (ucmd->forwardmove != 0 || ucmd->sidemove != 0)
+		{
+			ent->svflags &= ~SVF_NOCLIENT;
+			ent->client->cloaking = false;
+		}
+		else
+		{
+			if (ent->svflags & SVF_NOCLIENT)
+			{
+				if (ent->client->pers.inventory[ITEM_INDEX(FindItem("Cells"))] >= CLOAK_AMMO)
+				{
+					ent->client->cloakdrain ++;
+					if (ent->client->cloakdrain == CLOAK_DRAIN)
+					{
+						ent->client->pers.inventory[ITEM_INDEX(FindItem("Cells"))] -= CLOAK_AMMO;
+						ent->client->cloakdrain = 0;
+					}
+				}
+				else
+				{
+					ent->svflags &= ~SVF_NOCLIENT;
+					ent->client->cloaking = false;
+				}
+			}
+			else
+			{
+				if (ent->client->cloaking)
+				{
+					if (level.time > ent->client->cloaktime)
+					{
+						ent->svflags |= SVF_NOCLIENT;
+						ent->client->cloakdrain = 0;
+					}
+				}
+				else
+				{
+					ent->client->cloaktime = level.time + CLOAK_ACTIVATE_TIME;
+					ent->client->cloaking = true;
+				}
+			}
+		}
+	}
+
+That bit was the complicated bit. I'm only just starting to learn C at the moment, and it's all self-taught (ick!), so the code is probably really crummy, and i'm sure there must be much better ways of doing it. Anyway, the code checks first to see if cloaking is enabled or disabled. If it is enabled, it checks to see if the person is moving (note, you can be standing still - eg. up against a wall - but if you are still trying to move, it detects movement), and if so, makes the player visible, and resets the 'cloaked' variable. If the person is not moving, the code first checks to see if the person is already cloaked. This is done by the "if (ent->svflags & SVF_NOCLIENT)" bit. If an object is set with a flag SVF_NOCLIENT, Quake 2 doesn't draw an entity or model for it.
+
+If the person is cloaked and they have enough cells left, it drains cells from the person - otherwise it disables the cloaking device. You will notice it drains CLOAK_AMMO cells every CLOAK_DRAIN frames. This is so you can adjust the speed at which cells are drained.
+
+Ok. The next bit of code is used if the person isn't yet cloaked and isn't moving. If the delay timer (1.5 seconds) hasn't been activated yet, it sets the activation time to 1.5 seconds in the future, and sets a flag saying it want's to cloak. Otherwise, if we are waiting to cloak, it checks to see if we have reached the activation time. If we have, then we cloak :)
+
+Phew! You wouldn't believe how long that took me to work out - it looks simple now, but as I am not really proficient in C at all (hmm.. well I have a couple-of-days-of-looking-at-Quake-II-code's worth of knowledge, which isn't much) it took me a while to work my way around it.
+
+Right. Thats almost the tutorial over now. The next bit of effect we need to add is the "silent running" screen darkening. For this, we need to delve into the "p_view.c" file. Search for the 'SV_CalcBlend' function and add the following code, just above the code for tinting the view for powerups, such as Quad Damage. When inserted, the code should look something like:
+
+
+	// NEW CODE: cloaked - darken vision
+	if (ent->client->cloakable && (ent->svflags & SVF_NOCLIENT))
+		SV_AddBlend (-1, -1, -1, 0.3, ent->client->ps.blend);
+
+	// add for powerups
+	if (ent->client->quad_framenum > level.framenum)
+
+All this does is darken all colours (Red, Green and Blue) by 30 percent, when we have cloaking enabled, and we are cloaked.
+
+And finally, to actually get this code to work, we need to give each client those extra cloaking variables and constants it needs to run. Open up the file "g_local.h" and add the following lines about half-way down before the defined functions in 'g_monster.c' and after the damage flags. I only put it here because this is where I keep all of my other constants and it enables me to find them quickly and easily when I want them. I suppose you could put them anywhere in this file, or create a separate header file, but I haven't got that far in C yet, so I'm not going to experiment.
+
+
+#define CLOAK_ACTIVATE_TIME			1.5		// cloak after 1.5 seconds
+#define CLOAK_DRAIN					2		// every CLOAK_DRAIN frames,
+#define CLOAK_AMMO					1		// drain CLOAK_AMMO amount of cells
+
+Also, at the end of the same file, we need to add a couple of variables to the 'g_client_s' structure, so it looks like:
+
+
+	float		pickup_msg_time;
+
+	float		respawn_time;		// can respawn when time > this
+
+	// motion cloaking
+	qboolean	cloakable;
+	qboolean	cloaking;
+	float		cloaktime;
+	int			cloakdrain;
+
+
+Well, I think that's it. I've finished this tutorial. I hope it works for you as well as me. Thanks to John Rittenhouse for his original Cloaking Device, so I knew how to do it. If you have any tips or upgrades for it, could you let me know, so I can further my 'C' programming experience. Thanks
+Chris Fry
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question?Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for their great help and support with hosting.
+Best viewed with Netscape 4

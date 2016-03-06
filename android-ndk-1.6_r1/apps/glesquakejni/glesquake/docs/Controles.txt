@@ -1,0 +1,13 @@
+
+
+
+Contrôles :
+
+Retour = Menu principal
+Menu = Menu principal
+A = Haut
+B = Bas
+Trackball = Avancer/Reculer
+
+Dans la console :
+Trackball = Historique des commandes

@@ -1,0 +1,604 @@
+Quake DeveLS - Taunting
+
+Author: erebus
+Difficulty: Medium/Hard
+
+ 
+Comments
+Our Code
+Quake II's Code
+
+ 
+
+Introduction:
+
+In my last tutorial I covered opening and closing files in a non-practical context. This tutorial builds on the concepts of the last tutorial and shows a "real-world" application of file i/o in Quake II. You do not have to read the previous tutorial (although it may help), I assume you are starting from square one. The goal of this tutorial is to implement a taunting feature. The syntax:
+
+cmd taunt person
+
+This would generate a random taunt such as "erebus beats person with a sweaty Strogg female," where beats, sweaty, and Strogg female are wildcards loaded from an external file. I was being lazy, so I didn't sit down and plan this out on paper (trust me, it cost me later on in the form of rewriting functions after saying, "Hey, I know how to do this better!"). A word on programming discipline: if you want something to turn out the best it can possibly be, plan it out.
+
+What we are about to code is meant for deathmatch play. What we are about to code loads files from the server. This is not a good thing. We could make this patch more robust, allowing people to choose what files to load the taunts from. However, in this case the safest approach is the best approach. I chose to make the server load a file in the quake2 directory automatically upon starting (so people can't load whatever file they wish). The file is both loaded and closed by InitGame().
+
+The basic idea of this code is to:
+
+- Load and close "taunts.txt" while Quake II is loading.
+
+- Save a series of verbs, nouns, and adjectives into their own respective arrays.
+
+- Play back a taunt message whenever a user types 'cmd taunt ...'
+
+The format for taunts.txt is as follows:
+
+[VERBS]
+verb
+verb
+
+[ADJECTIVES]
+(a/an) adjective
+(a/an) adjective
+
+[NOUNS]
+noun
+noun
+
+The blank lines between sections are necessary. Also, there must not be blank lines between the section header and the section elements. The sections may, however, be arranged in any order.
+
+ 
+
+The code:
+
+First create a new file in the directory with Quake II's other sources (I chose g_taunt.c). We begin with the following code:
+
+// g_taunt.c
+#include "g_local.h" // talk to Quake
+
+A very important macro comes next, the need for it will be demonstrated soon:
+
+#define myrandom() ((int)(random()*100))	// this returns a random number between 0 and 100
+
+Next, some symbolic constants:
+
+// defines
+#define VERB		0	// these #defines help GetTaunt()
+#define ADJECTIVE	1	// know what type of word to
+#define NOUN		2	// return
+
+#define MAX_OBJECTS	750	// max storage space for verb, adjective, and noun arrays
+#define MAX_LINE_SIZE	100 	// maximum number of characters to read in per line of a file
+
+VERB, ADJECTIVE, and NOUN are used later on to specify what kind of word we want returned. MAX_OBJECTS can be increased or decreased to reflect how much storage space gets allocated for each of the three arrays. MAX_LINE_SIZE is how many characters we take in maximum per line of a file.
+
+Several global variables are needed here, one that tells whether or not our code initialized properly, three arrays of chars that hold the verbs, adjectives, and nouns, and three ints that tell the number of elements in each array:
+
+// global variables
+int TauntInit = 0;	// 0 if taunt did not load, 1 if it did
+
+char Verbs[MAX_OBJECTS],		// these arrays contain all of our
+	 Adjectives[MAX_OBJECTS],	// verbs, adjectives, and nouns
+	 Nouns[MAX_OBJECTS];		// for use in taunts
+
+int NumVerbs = 0,		// these hold the number of elements
+	NumAdjectives = 0,  	// in each array
+	NumNouns = 0;
+
+TauntInit is important so we don't respond to a user's taunt request if our code did not initialize properly. We need to know the number of elements in each array so our code for choosing a random element works.
+
+Now, we must declare the functions we will use throughout this file (InitTaunt() and Taunt() will be declared in g_local.h):
+
+void RandomTaunt(char s[], int num, char elements[]);
+void GetTaunt(char s[], int type);
+int GetLineFromFile(FILE *in, char s[]);
+int SearchFile(FILE *in, char s[]);
+
+Now, to load taunts.txt and parse it for our use. The idea of this next function is simple: load a text file, parse it into three arrays with comma delimited elements. It calls other functions to move the file pointer to certain positions and gather elements. The implementation is equally simple:
+
+// -- FUNCTIONS
+//
+// Loads taunts.txt, moves Verbs, Adjectives, and Nouns into their
+// own arrays. This is called by InitGame().
+void InitTaunt(void)
+{
+	FILE *in;	// taunts.txt
+	char CurrentLine[MAX_LINE_SIZE];	// the line we are currently sorting
+
+	if ((in = fopen("taunts.txt", "r")) == NULL) {	// taunts.txt could not be loaded
+		// print an error message, set TauntInit to 0, and exit
+		gi.dprintf("==== InitTaunt: Could not load file: taunts.txt ====\n");
+		TauntInit = 0;
+		return;
+	}
+	
+	// Search our file for [VERBS]
+	if (!SearchFile(in, "[VERBS]"))
+		// if [VERBS] is not found, return, TauntInit will still be set at 0
+		return;
+	// After [VERBS] is found, read from the file a line at a time
+	// until a line with nothing on it is reached
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		// concatenate the current line into our verbs array
+		strcat(Verbs, CurrentLine);
+		NumVerbs++;
+	}
+
+	// Do the same for both adjectives and nouns
+	if (!SearchFile(in, "[ADJECTIVES]"))
+		return;
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		strcat(Adjectives, CurrentLine);
+		NumAdjectives++;
+	}
+
+	if(!SearchFile(in, "[NOUNS]"))
+		return;
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		strcat(Nouns, CurrentLine);
+		NumNouns++;
+	}
+	fclose(in);	// close in
+
+	TauntInit = 1;	// Taunt initialized successfuly
+}
+
+Now that we have the means to initialize our code, what function should call it? The answer lies in line 125 of g_saved.c. InitGame() which, according to the source file, "Will be called when the dll is first loaded, which only happens when a new game is begun." A perfect fit. Make the end of InitGame() look like this:
+
+	for (i=0 ; i<game.maxclients ; i++)
+	{
+		InitClientPersistant (&game.clients[i]);
+		InitClientResp (&game.clients[i]);
+	}
+	globals.num_edicts = game.maxclients+1;
+	
+	// initialize taunt
+	InitTaunt();
+}
+
+Now our initialization function is called whenever a new game of Quake II is started. Let's take a look at the functions InitTaunt() depends on, starting with SearchFile(). The basic idea of search file is to search a specified file line by line until it finds a line that matches a specified string. It leaves the file pointer at the beginning of the next line and returns zero if no match is found. The strings we search for in InitTaunt() are: [VERBS], [ADJECTIVES], and [NOUNS]. Let's take a look at SearchFile():
+
+//
+// This takes us to the line of the file right after
+// 's' is found.
+int SearchFile(FILE *in, char s[])
+{
+	char CurrentLine[MAX_LINE_SIZE];	// The line we are currently checking
+	
+	fseek(in, 0, SEEK_SET);	// move to beginning of file
+	while (!feof(in)) {	// While we aren't at the end of in
+		GetLineFromFile(in, CurrentLine);	// Store the current line into CurrentLine
+		// Check to see if CurrentLine matches s
+		if (strncmp(CurrentLine, s, strlen(s)-1) == 0)
+			return 1;	// if it does, stop searching
+	}
+	return 0; // no match found
+}
+
+As you can see, like InitTaunt, this function calls GetLineFromFile(). GetLineFromFile() copies characters from a file to a char array starting from the file pointer's current position and continuing until EOF or '\n' is reached. It then adds a comma and a null character to the end of the string to make formatting our arrays easier:
+
+//
+// This gets the next line in a file.
+// It adds a comma to the end of the char *
+// for purposes of adding to a master array
+int GetLineFromFile(FILE *in, char s[])
+{
+	int i, c;
+
+	// This reads characters from in into s until MAX_LINE_SIZE-1 is reached,
+	// a newline character is reached, or an EOF is reached.
+	for (i = 0; i < MAX_LINE_SIZE-1 && (c = fgetc(in)) != '\n' && c != EOF; i++)
+		s[i] = c;
+	// Add a comma, this is necessary for proper array formatting
+	s[i++] = ',';
+	// Add a '\0' to the end of s
+	s[i] = '\0';
+	return i;
+}
+
+Now we have initialization completely covered. All functions called by InitTaunt() are presented and Quake II calls InitTaunt() at the proper time. Now we must make it so the user can type "cmd taunt (person)" and have our code respond with a random phrase. The main function that controls this is Taunt():
+
+//
+// This is the function called by "cmd taunt,"
+// it makes sure TauntInit is not 0, and outputs
+// a random taunt using strings provided by GetTaunt
+void Taunt(edict_t *ent)
+{
+	char *person;
+	char taunt[MAX_LINE_SIZE];
+	
+	person = gi.args();	// get the argument list (the person to taunt)
+
+	if (!TauntInit) {	// Taunt was not initialized
+		gi.cprintf(ent, PRINT_HIGH, "Taunt has not initialized properly");
+		return;
+	}
+	
+	GetTaunt(taunt, VERB);	// read a verb
+	// print the '"taunter" "verb" "taunted" with ' part of the message
+	gi.bprintf(PRINT_MEDIUM, "%s %s %s with ", ent->client->pers.netname, taunt, person);
+	
+	GetTaunt(taunt, ADJECTIVE); // read an adjective
+	// print the '" a/an adjective"' part
+	gi.bprintf(PRINT_MEDIUM, "%s ", taunt);
+	
+	GetTaunt(taunt, NOUN); // get a noun
+	// print the '"noun"!' part and add a newline
+	gi.bprintf(PRINT_MEDIUM, "%s!\n", taunt);
+}
+
+That function will be called by Quake. Quake passes an edict_t to this function which contains information on who the taunting person is. We call gi.args() to get the desired name to taunt, then we call a function of our own, GetTaunt(). GetTaunt() fills a char array with a taunt of type VERB, ADJECTIVE, or NOUN. This is where the #defines from earlier on come in handy. Let's take a look at GetTaunt():
+
+//
+// Uses RandomTaunt to store the proper element in s
+void GetTaunt(char s[], int type)
+{
+	// this is self explanatory
+	switch(type) {
+	case VERB:
+		RandomTaunt(s, NumVerbs, Verbs);
+		break;
+	
+	case ADJECTIVE:
+		RandomTaunt(s, NumAdjectives, Adjectives);
+		break;
+		
+	case NOUN:
+		RandomTaunt(s, NumNouns, Nouns);
+		break;
+	
+	default:
+		strcpy(s, "Error!");
+		break;
+	}
+}
+
+This function uses a switch to direct program flow to the proper argument list of a function named RandomTaunt(). RandomTaunt takes three parameters: a char array, an int, and another char array. The first char array is where the taunt is stored by RandomTaunt(). The int is the number of comma delimited elements that are contained in the second char array. This is needed for purposes of selecting a random element:
+
+//
+// This reads a random element from pre-formatted
+// elements[] (that contains 'num' elements) and stores
+// it in s
+void RandomTaunt(char s[], int num, char elements[])
+{
+	int i, j, RandNum;	
+	RandNum = myrandom() % (num);		// This produces a random number between
+										// 0 and num
+	i = j = 0;
+	while (j < RandNum) {				// This loop advances elements[]
+		if (elements[i++] == ',')		// the the element just after
+			j++;				// RandNum-1 commas have been passed
+		
+		else if (elements[i] == '\0') {		// If the character in this position is '\0'
+			strcpy(s, "Error!");		// something has gone wrong, so fill s with
+			return;				// "Error!" and return
+		}
+	}
+	
+	// this loop copies the selected element into s
+	for (j = 0; j < MAX_LINE_SIZE-1 && elements[i] != ',' && elements[i] != '\0'; j++)
+		s[j] = elements[i++];
+	// add a '\0' at the end of s, so gi.bprintf() can print it
+	// out properly
+	s[j] = '\0';
+}
+
+This function sorts through our arrays, selects a random element, and stores it into a specified char array. Now that we have all the functions we need to create for taunting, let's make sure we can use it in Quake II. Around line 650 of g_cmds.c (the very end), add this:
+
+else if (Q_stricmp (cmd, "fov") == 0)
+	{
+		ent->client->ps.fov = atoi(gi.argv(1));
+		if (ent->client->ps.fov < 1)
+			ent->client->ps.fov = 90;
+		else if (ent->client->ps.fov > 160)
+			ent->client->ps.fov = 160;
+	}
+	
+	// taunt
+	else if (Q_stricmp(cmd, "taunt") == 0)
+		Taunt(ent);
+	else
+		gi.cprintf (ent, PRINT_HIGH, "Bad command: %s\n", cmd);
+}
+
+Now to make our functions Taunt() and InitTaunt() usable to Quake II. In g_local.h, around line 700, add this:
+
+//
+// g_main.c
+//
+void SaveClientData (void);
+void FetchClientEntData (edict_t *ent);
+
+//
+// g_taunt.c
+//
+void InitTaunt(void);
+void Taunt(edict_t *ent);
+
+Now both g_cmds.c and g_saved.c will recognize what functions we are calling. The .dll will compile now, but we need to do one more thing. Here's a listing of my taunts.txt, feel free to change it as you like, but you can cut and paste this into a text editor and save it as "taunts.txt" in your .../quake2 directory:
+
+[ADJECTIVES]
+a smelly
+a bitchy
+an irate
+a pissed
+a hot and bothered
+a menstruating
+an angry
+a pirated
+a retarded
+a vibrating
+a crazy
+an intellectual
+a malfunctioning
+a boiling
+
+[NOUNS]
+_Zen Of Graphics Programming_
+moose
+Direct3D program
+engineer
+copy of Duke Nukem 3D
+internet
+Mac
+jar of Vaseline
+dork
+computer science major
+Troopeux TC
+goat
+Sound Blaster AWE 64
+Quad Damage
+Strogg female
+
+[VERBS]
+beats
+blinds
+greases
+harms
+confuses
+attacks
+frags
+explodes
+boggles
+defeats
+damages
+
+These will produce some "interesting" taunts. Run Quake II with: quake2.exe +set game "taunt" (or whatever directory you put the new dll in). Have a little fun with "cmd taunt (insert your worse enemy here)".
+
+ 
+
+Notes:
+
+- In my last tutorial, "Accessing Files" I incorrectly used the acronym STL. STL really stands for C++'s Standard Template Library. C has no STL so, substitute "standard library" for STL :). Thanks goes to John Crickett and Steve Simpson for the wakeup call. According to John, "You`ll find STL has nothing to do with fopen which is defined in the C libraries. STL is a extension to C++ by HP in 1994 that provides wrappers and container classes. It's more aimed at linked lists, etc." Check out John's Oak II project and his dll tutorial page, both are great sites.
+
+- Another change to "Accessing Files," thanks to Chris Barnes (check out www.Angelic-Coders.com), in function LoadFile(), under the comment "// there's already a file open," the line:
+
+gi.cprintf(ent, PRINT_HIGH, "File %s is already loaded.\n, filename");"
+
+should be:
+
+gi.cprintf(ent, PRINT_HIGH, "File %s is already loaded.\n", filename); 
+
+Woops :)
+
+- Thanks to HazMat for proofreading, and check out the project he's working on (with a little help from his friends) at www.katanasoft.com. Also, thanks to illusio for moral support and proofreading.
+
+- Please cut down on the "Your tutorial sucks." All the people that mailed me this haven't even released a tutorial / source code, or for that matter anything. I'm trying my hardest, and as you see this tutorial is an improvement over the last. With constructive criticism I can get better. At least give me the decency of "Your tutorial sucks because ..."
+
+- Also, *please* mail me feedback. I am not the best coder in the world (if you hadn't noticed yet), and if you see improvements that can be made or any other mistakes, mail me! I need as much (if not more) help as everyone else reading this tutorial.
+
+- Once again, have fun and learn. You can use this code however you want and you need not credit me. Please, if you have the time and knowledge consider writing a tutorial. It forces you to examine your own code to new degrees, you get tips mailed in from others on how to improve your code, and you get to help others start out. It's a win-win situation for all.
+
+- erebus
+
+ 
+
+Plain code:
+
+Here is a complete listing of g_taunt.c, ripe for cutting and pasting (I *just* compiled this using MSVC 4.0 and tested it in Quake II, it should work fine):
+
+// g_taunt.c
+#include "g_local.h" // talk to Quake
+
+// macros
+#define myrandom() ((int)(random()*100))	// this returns a random number between 0 and 100
+
+// defines
+#define VERB		0	// these #defines help GetTaunt()
+#define ADJECTIVE	1	// know what type of word to
+#define NOUN		2	// return
+
+#define MAX_OBJECTS		750	// max storage space for verb, adjective, and noun arrays
+#define MAX_LINE_SIZE	100 // maximum number of characters to read in per line of a file
+
+
+// global variables
+int TauntInit = 0;	// 0 if taunt did not load, 1 if it did
+
+char Verbs[MAX_OBJECTS],		// these arrays contain all of our
+	 Adjectives[MAX_OBJECTS],	// verbs, adjectives, and nouns
+	 Nouns[MAX_OBJECTS];		// for use in taunts
+
+int NumVerbs = 0,		// these hold the number of elements
+	NumAdjectives = 0,  // in each array
+	NumNouns = 0;
+
+
+// declarations
+void RandomTaunt(char s[], int num, char elements[]);
+void GetTaunt(char s[], int type);
+int GetLineFromFile(FILE *in, char s[]);
+int SearchFile(FILE *in, char s[]);
+
+
+// -- FUNCTIONS
+//
+// Loads taunts.txt, moves Verbs, Adjectives, and Nouns into their
+// own arrays. This is called by InitGame().
+void InitTaunt(void)
+{
+	FILE *in;	// taunts.txt
+	char CurrentLine[MAX_LINE_SIZE];	// the line we are currently sorting
+
+	if ((in = fopen("taunts.txt", "r")) == NULL) {	// taunts.txt could not be loaded
+		// print an error message, set TauntInit to 0, and exit
+		gi.dprintf("==== InitTaunt: Could not load file: taunts.txt ====\n");
+		TauntInit = 0;
+		return;
+	}
+	
+	// Search our file for [VERBS]
+	if (!SearchFile(in, "[VERBS]"))
+		// if [VERBS] is not found, return, TauntInit will still be set at 0
+		return;
+	// After [VERBS] is found, read from the file a line at a time
+	// until a line with nothing on it is reached
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		// concatenate the current line into our verbs array
+		strcat(Verbs, CurrentLine);
+		NumVerbs++;
+	}
+
+	// Do the same for both adjectives and nouns
+	if (!SearchFile(in, "[ADJECTIVES]"))
+		return;
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		strcat(Adjectives, CurrentLine);
+		NumAdjectives++;
+	}
+
+	if(!SearchFile(in, "[NOUNS]"))
+		return;
+	while (GetLineFromFile(in, CurrentLine) > 1) {
+		strcat(Nouns, CurrentLine);
+		NumNouns++;
+	}
+	fclose(in);	// close in
+
+	TauntInit = 1;	// Taunt initialized successfuly
+}
+
+
+//
+// This is the function called by "cmd taunt,"
+// it makes sure TauntInit is not 0, and outputs
+// a random taunt using strings provided by GetTaunt
+void Taunt(edict_t *ent)
+{
+	char *person;
+	char taunt[MAX_LINE_SIZE];
+	person = gi.args();	// get the argument list (the person to taunt)
+
+	if (!TauntInit) {	// Taunt was not initialized
+		gi.cprintf(ent, PRINT_HIGH, "Taunt has not initialized properly");
+		return;
+	}
+	
+	GetTaunt(taunt, VERB);	// read a verb
+	// print the '"taunter" "verb" "taunted" with ' part of the message
+	gi.bprintf(PRINT_MEDIUM, "%s %s %s with ", ent->client->pers.netname, taunt, person);
+	
+	GetTaunt(taunt, ADJECTIVE); // read an adjective
+	// print the '" a/an adjective"' part
+	gi.bprintf(PRINT_MEDIUM, "%s ", taunt);
+	
+	GetTaunt(taunt, NOUN); // get a noun
+	// print the '"noun"!' part and add a newline
+	gi.bprintf(PRINT_MEDIUM, "%s!\n", taunt);
+}
+
+
+//
+// This reads a random element from pre-formatted
+// elements[] (that contains 'num' elements) and stores
+// it in s
+void RandomTaunt(char s[], int num, char elements[])
+{
+	int i, j, RandNum;	
+	RandNum = myrandom() % (num);		// This produces a random number between
+										// 0 and num
+	i = j = 0;
+	while (j < RandNum) {				// This loop advances elements[]
+		if (elements[i++] == ',')		// the the element just after
+			j++;						// RandNum-1 commas have been passed
+		
+		else if (elements[i] == '\0') {	// If the character in this position is '\0'
+			strcpy(s, "Error!");		// something has gone wrong, so fill s with
+			return;						// "Error!" and return
+		}
+	}
+	
+	// this loop copies the selected element into s
+	for (j = 0; j < MAX_LINE_SIZE-1 && elements[i] != ',' && elements[i] != '\0'; j++)
+		s[j] = elements[i++];
+	// add a '\0' at the end of s, so gi.bprintf() can print it
+	// out properly
+	s[j] = '\0';
+}
+
+
+//
+// Uses RandomTaunt to store the proper element in s
+void GetTaunt(char s[], int type)
+{
+	// this is self explanatory
+	switch(type) {
+	case VERB:
+		RandomTaunt(s, NumVerbs, Verbs);
+		break;
+	
+	case ADJECTIVE:
+		RandomTaunt(s, NumAdjectives, Adjectives);
+		break;
+		
+	case NOUN:
+		RandomTaunt(s, NumNouns, Nouns);
+		break;
+	
+	default:
+		strcpy(s, "Error!");
+		break;
+	}
+}
+
+
+//
+// This gets the next line in a file.
+// It adds a comma to the end of the char *
+// for purposes of adding to master array
+int GetLineFromFile(FILE *in, char s[])
+{
+	int i, c;
+
+	// This reads characters from in into s until MAX_LINE_SIZE-1 is reached,
+	// a newline character is reached, or an EOF is reached.
+	for (i = 0; i < MAX_LINE_SIZE-1 && (c = fgetc(in)) != '\n' && c != EOF; i++)
+		s[i] = c;
+	// Add a comma, this is necessary for proper array formatting
+	s[i++] = ',';
+	// Add a '\0' to the end of s
+	s[i] = '\0';
+	return i;
+}
+
+
+//
+// This takes us to the line of the file right after
+// 's' is found.
+int SearchFile(FILE *in, char s[])
+{
+	char CurrentLine[MAX_LINE_SIZE];	// The line we are currently checking
+	
+	fseek(in, 0, SEEK_SET);	// move to beginning of file
+	while (!feof(in)) {	// While we aren't at the end of in
+		GetLineFromFile(in, CurrentLine);	// Store the current line into CurrentLine
+		// Check to see if CurrentLine matches s
+		if (strncmp(CurrentLine, s, strlen(s)-1) == 0)
+			return 1;	// if it does, stop searching
+	}
+	return 0; // no match found
+}
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question? Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for there great help and support with hosting.
+Best viewed with Netscape 4 or IE 3

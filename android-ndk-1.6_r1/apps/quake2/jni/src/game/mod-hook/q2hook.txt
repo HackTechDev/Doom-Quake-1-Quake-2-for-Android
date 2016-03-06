@@ -1,0 +1,135 @@
+-------------------------------------------------------------
+Swinging Grappling Hook Mod v1.4 for Quake2         12/09/98
+Compiled with v3.20 Quake2 source code
+-------------------------------------------------------------
+
+
+What's new
+----------
+Just recompiled it with the sorely needed v3.20 Quake2 source
+code just released.
+
+
+Features
+--------
+- unprecedented use of true to life swinging physics
+- ability to climb up or drop down the chain
+- ability to push opponent(i.e. in lava) or inflict damage
+  from hook impact
+- undisturbed use of weapons during hook use
+
+
+Description
+-----------
+Grappling hook is a rotating iron shaft with claws, thrown by
+a chain and used for grasping, drawing and holding. Can be
+used for getting out of tight spots, getting to unreachable
+places, and even stabbing your enemy, inflicting great pain.
+Make your self a hard target to hit by swinging from the hook
+while taking shots at the poor saps bellow. The grappling hook
+does not use any ammunition.
+
+
+Installation
+------------
+Unzip all the contents of this archive(preserving the directory
+structure) into the Quake2 directory. To start the game, run
+the Q2hook.bat from the Quake2 directory. Extra parameters can
+be added to the Q2hook.bat just like so: 
+Q2hook.bat +map mapname
+
+
+Usage
+-----
+The default keys for using the hook are:
+
+    SHIFT = for launching or releasing the hook (if held down
+            while launching, player gets pulled until release)  
+        R = for pulling or climbing the chain
+        W = for sliding down or giving slack to the chain
+
+	As you are hanging use the movement keys to amplify
+	your swing into the desired direction.	
+
+Note that these are just the keys that happen to fit well 
+with my key configuration. You could change any of the default
+keys to ones of your choice by editing the hook.cfg found in
+the ..\quake2\hook directory with a text editor. To map
+different keys, replace SHIFT, R, and W with keys of your
+choice and save.
+
+
+Server console variables
+------------------------
+Edit some of the hook attributes to your liking through the
+following server console variables either by typing them directly
+into the console while in the game or inserting them in the
+hook.cfg to be loaded at the start: 
+  
+hook_speed 
+	Useful values:500-2200; Default:1000     
+	Speed the hook is launched
+
+hook_min_len 
+	Useful values:0-100; Default:40
+	Minimum length chain can be reeled in
+
+hook_max_len
+	Useful values:500-1850; Default:1000
+	Maximum length chain can be reeled out
+
+hook_rpf
+	Useful values:20-110; Default:40
+	Rate(reel in/reel out) per frame
+
+hook_no_pred
+	Valid values:0/non-0; Default:0
+	A non-0 value disables prediction while suspended in air by hook
+	Reduces swinging jerkiness on slow connections
+
+
+Incorporating this patch with another
+-------------------------------------
+The source code for this mod in found in the /hook/src/ directory.
+Open the p_hook.c file with a text editor and look at the top
+commented section. There you will find an outline of the exact
+changes that were done to the original Quake2 source files. To add
+this patch to another simply apply those changes to the source code
+of the other patch, add the p_hook.c to the project, and recompile.
+
+
+The most frequently asked question
+----------------------------------
+Q: The grappling hook works fine in single player mode but why
+   doesn't it work when I play on the Internet?
+
+A: Quake2 not unlike Quake is one of the first games to run
+   on a true client server model. The server runs the gamex86.dll
+   (the compiled game logic C code) not the client. This means that
+   only the server can be patched with a game logic modification.
+   In a single player situation, you local machine runs both the
+   server and the client, so the patch is being used by your local
+   server. When playing Quake or Quake2 on the Internet you are
+   playing on somebody else's server. In this situation your
+   computer is only running the client and you have no control over
+   what game logic you play with. All the client does is loads
+   resources(skins, models, sounds, maps, etc.) ordered by the
+   server's game logic, renders/plays those resources also controlled
+   by the server's game logic, and sends back input data to the 
+   server to update its virtual world data. So, the only way to play
+   my hook patch(or any other patch for that mater) over the
+   Internet, is to connect to a server that has it installed or urge
+   the operator of that server to run that mod. This design
+   prevents players from having unfair advantages on net games and
+   empowers the server operator with total control over rules and
+   behavior of the game.
+
+
+Credits
+-------
+Code by: Perecli Manole		Battle nick: Bort
+
+
+If you need help or have any comments or suggestions
+regarding this mod, my email is: Perecli@ix.netcom.com
+Visit http://www.thegrid.net/chaotic78/hooked/ for updates

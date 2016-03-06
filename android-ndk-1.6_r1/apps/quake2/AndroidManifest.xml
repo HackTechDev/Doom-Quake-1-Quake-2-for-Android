@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+      package="com.jeyries.quake2" android:versionCode="18" android:versionName="1.8">
+    <uses-sdk android:minSdkVersion="3" />
+    <application android:icon="@drawable/icon" android:label="Quake2">
+        <activity android:name=".Quake2"
+                  android:label="Quake2" 
+                  android:screenOrientation="landscape"
+                  android:launchMode="singleInstance"
+                  android:multiprocess="false"
+                  android:finishOnTaskLaunch="true"
+                  >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+    
+    <uses-permission 
+        android:name="android.permission.INTERNET">
+    </uses-permission>
+    
+	<uses-permission android:name="android.permission.VIBRATE" /> 
+
+   
+</manifest> 

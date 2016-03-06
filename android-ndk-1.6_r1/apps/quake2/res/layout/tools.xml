@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AbsoluteLayout
+android:id="@+id/widget0"
+android:layout_width="fill_parent"
+android:layout_height="fill_parent"
+xmlns:android="http://schemas.android.com/apk/res/android"
+>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="Quake 2 Tools"
+android:textSize="21sp"
+android:layout_x="124px"
+android:layout_y="17px"
+android:textStyle="bold"
+android:textColor="#00ff00"
+>
+</TextView>
+
+
+<Button
+android:id="@+id/button_download"
+android:layout_width="200px"
+android:layout_height="wrap_content"
+android:text="Download data file"
+android:layout_x="20px"
+android:layout_y="55px"
+>
+</Button>
+
+<Spinner 
+        android:id="@+id/spinner"
+        android:layout_width="440px"
+        android:layout_height="wrap_content"
+        android:drawSelectorOnTop="true"
+        android:prompt="@string/mirror_prompt"
+        android:layout_x="20px"
+		android:layout_y="100px"
+/>
+    
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="This tool will extract the pak0.pak file from the Quake2 Demo\nWarning : this is a 40 MB download, if possible enable WIFI"
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="150px"
+/>
+   
+
+
+
+
+
+<Button
+android:id="@+id/button_config"
+android:layout_width="200px"
+android:layout_height="wrap_content"
+android:text="Restore config file"
+android:layout_x="20px"
+android:layout_y="200px"
+>
+</Button>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="Set up a default config for Android phones\nwith support for touchscreen and sensors."
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="250px"
+>
+</TextView>
+
+
+
+</AbsoluteLayout>

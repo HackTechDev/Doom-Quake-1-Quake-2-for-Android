@@ -1,0 +1,488 @@
+
+ 
+Blinky's Pets Tutorial
+mailto:blinkyquake@hotmail.com 
+Created: 2000/08/21 
+Edited: 2000/10/18 
+Abstract
+This adds player created monsters, which are loyal to the player - I call them pets. 
+Credits
+Wraithchilde helped improve this. 
+Overview
+To spawn a new monster, we create a new entity, set some parameters for it, most notably classname, and then (imitating level loading code) we call ED_CallSpawn, which will look at its classname and trigger the usual monster creation code. After that runs to completion, our code will do a trace to see if it is overlapping anything else in the game (if so, we free it and bail out). Then we institute skin copying for decoys (pets that look like the player), and we adjust pet count etc. 
+Additionally, I used a new targetting function for pets (this was suggested to me by Major Bitch). The original one is very complicated, and I couldn't get to work with monster targets - it works with a "player of the moment" (it cycles through players as potential targets - each one is in turn nominated as the "player of the moment" - in my colorful terminology). My new targetting function, Pet_FindTarget, is very much simpler. 
+
+There is death code for pets (have to adjust master's petcount), and for players (all pets are freed - they become wild). 
+
+I put in some primitive behavior states for pets (free-ranging vs following pets, stay state to freeze them in position, mostly for testing). 
+
+I included a petcam that we enjoyed using in our games with pets. 
+
+New Files
+Most of the code is in b_pet.c and b_pet.h, which are available zipped. (Changed 2000/10/18). 
+Add cvars
+Make the appropriate changes to add the following cvars (i.e., declare in g_local.h, allocate in g_main.c, and initialize in g_save.c). 
+
+
+
+petquota, with initial value of 400 
+using_pets, with initial value of 1 
+dm_monsters, with initial value of 0 (actually I use 1) 
+
+
+
+
+g_local.h
+Add fields to monsterinfo_t
+Find the end of the monsterinfo_t structure (circa line 428 in 3.20 src), and add two new fields: 
+
+	int			power_armor_type;
+	int			power_armor_power;
+
+// blinky, pet
+	edict_t *   PetOwner;
+	int PetState;
+	int TargetCounter;
+	char name[12];
+// blinky end
+
+} monsterinfo_t;
+
+Add data to client structure
+At the very bottom of the declaration of struct gclient_s, add two fields for maintaining pet data for a player (circa line 949 in 3.20 src): 
+	// blinky, pet
+	int PetCount;
+	int PetStrength;
+	edict_t * petcam;
+	float LastCampetYaw;
+};
+
+m_medic.c
+Setting owner for resurrected monsters Find the function medic_cable_attack (circa line 557 in 3.20 src), and then find the handling of FRAME_attack50, where it resurrects a monster, and at the end of this (circa line 614 in 3.20 src), add a line to set the resurrected monster's owner: 
+// blinky, pet
+    // resurrected monster gets same owner as medic
+    self->enemy->monsterinfo.PetOwner = self->monsterinfo.PetOwner;
+// end blinky
+
+p_weapon.c
+Need to call existing but static function P_ProjectSource
+Remove the keyword static from the definition of the P_ProjectSource function, circa line 14 in 3.20 p_weapon.c. 
+Add a declaration of the P_ProjectSource function to g_local.h. For example, it could be added right after the section of declarations for g_combat.c, e.g.: 
+
+//
+// g_combat.c
+//
+qboolean OnSameTeam (edict_t *ent1, edict_t *ent2);
+qboolean CanDamage (edict_t *targ, edict_t *inflictor);
+void T_Damage (edict_t *targ, edict_t *inflictor, edict_t *attacker, vec3_t dir, vec3_t point, vec3_t normal, int damage, int knockback, int dflags, int mod);
+void T_RadiusDamage (edict_t *inflictor, edict_t *attacker, float damage, edict_t *ignore, float radius, int mod);
+
+//
+// p_weapon.c
+//
+void P_ProjectSource (gclient_t *client, vec3_t point, vec3_t distance, vec3_t forward, vec3_t right, vec3_t result);
+
+
+
+
+
+g_cmds.c
+Add player commands. 
+First include the pet header at the top of g_cmds.c: 
+
+#include "g_local.h"
+#include "m_player.h"
+
+// blinky, pets
+#include "b_pet.h"
+
+Now we need to revise OnSameTeam, because I use it elsewhere for monsters as well, and the original one does not handle monsters (much less pets). We simply insert code at the top to handle monsters and pets, and to change to the owners. See my tutorial on OnSameTeam for more on this topic. 
+
+qboolean OnSameTeam (edict_t *ent1, edict_t *ent2)
+{
+	char	ent1Team [512];
+	char	ent2Team [512];
+
+// blinky, pets
+	ent1=GetOwner(ent1);
+	ent2=GetOwner(ent2);
+	if (!ent1) return !ent2;
+	if (!ent2) return false;
+	if (coop->value) return true;
+	if (ent1 == ent2) return true; // this covers copets
+// end blinky, pets
+
+	if (!((int)(dmflags->value) & (DF_MODELTEAMS | DF_SKINTEAMS)))
+
+Finally add all the new commands to the ClientCommand function (I put them at the bottom): 
+
+	else if (Q_stricmp(cmd, "playerlist") == 0)
+		Cmd_PlayerList_f(ent);
+// blinky, pets
+	else if (Q_stricmp(cmd, "m_berserk") == 0)
+		Cmd_Pet_f(ent, "monster_berserk");
+	else if (Q_stricmp(cmd, "m_gladiator") == 0)
+		Cmd_Pet_f(ent, "monster_gladiator");
+	else if (Q_stricmp(cmd, "m_gunner") == 0)
+		Cmd_Pet_f(ent, "monster_gunner");
+	else if (Q_stricmp(cmd, "m_infantry") == 0)
+		Cmd_Pet_f(ent, "monster_infantry");
+	else if (Q_stricmp(cmd, "m_soldier") == 0)
+		Cmd_Pet_f(ent, "monster_soldier");
+	else if (Q_stricmp(cmd, "m_tank") == 0)
+		Cmd_Pet_f(ent, "monster_tank");
+	else if (Q_stricmp(cmd, "m_supertank") == 0)
+		Cmd_Pet_f(ent, "monster_supertank");
+	else if (Q_stricmp(cmd, "m_medic") == 0)
+		Cmd_Pet_f(ent, "monster_medic");
+	else if (Q_stricmp(cmd, "m_flipper") == 0)
+		Cmd_Pet_f(ent, "monster_flipper");
+	else if (Q_stricmp(cmd, "m_chick") == 0)
+		Cmd_Pet_f(ent, "monster_chick");
+	else if (Q_stricmp(cmd, "m_parasite") == 0)
+		Cmd_Pet_f(ent, "monster_parasite");
+	else if (Q_stricmp(cmd, "m_flyer") == 0)
+		Cmd_Pet_f(ent, "monster_flyer");
+	else if (Q_stricmp(cmd, "m_brain") == 0)
+		Cmd_Pet_f(ent, "monster_brain");
+	else if (Q_stricmp(cmd, "m_floater") == 0)
+		Cmd_Pet_f(ent, "monster_floater");
+	else if (Q_stricmp(cmd, "m_hover") == 0)
+		Cmd_Pet_f(ent, "monster_hover");
+	else if (Q_stricmp(cmd, "m_mutant") == 0)
+		Cmd_Pet_f(ent, "monster_mutant");
+	else if (Q_stricmp(cmd, "m_insane") == 0)
+		Cmd_Pet_f(ent, "misc_insane");
+	else if (Q_stricmp(cmd, "petcam") == 0)
+		Cmd_Petcam_f(ent);
+	else if (Q_stricmp(cmd, "petcamoff") == 0)
+		Cmd_PetcamOff_f(ent);
+	else if (Q_stricmp(cmd, "petstop") == 0)
+		Cmd_PetStop_f(ent);
+	else if (Q_stricmp(cmd, "petgo") == 0)
+		Cmd_PetGo_f(ent);
+	else if (Q_stricmp(cmd, "petfollow") == 0)
+		Cmd_PetFollow_f(ent);
+	else if (Q_stricmp(cmd, "petfree") == 0)
+		Cmd_PetFree_f(ent);
+	else if (Q_stricmp(cmd, "petlist") == 0)
+		Cmd_PetList_f(ent);
+	else if (Q_stricmp(cmd, "decoy") == 0)
+		Cmd_Pet_f(ent, "monster_decoy");
+	else if (Q_stricmp(cmd, "riot") == 0)
+		Cmd_Pet_Riot_f(ent);
+// end blinky, pets
+	else	// anything that doesn't match a command will be a chat
+		Cmd_Say_f (ent, false, true);
+}
+
+m_infantry.c, etc
+Modify all monster files to allow monsters in deathmatch. Every monster start function is called SP_Xxxxx and is located in the monster's module (Xxxxx.c), and right at the top checks for deathmatch. Modify it to allow pets (depending on the cvar), and monsters in deathmatch (depending on the cvar), like so (example for tank): 
+void SP_monster_tank (edict_t *self)
+{
+// blinky, pets
+	if (self->monsterinfo.PetOwner && !using_pets->value)
+	{
+		G_FreeEdict (self);
+		return;
+	}
+	else if (deathmatch->value && !dm_monsters->value)
+	{
+		
+		G_FreeEdict (self);
+		return;
+	}
+// end blinky, pets
+
+	self->s.modelindex = gi.modelindex ("models/monsters/tank/tris.md2");
+
+g_monster.c
+There is another (superfluous) check excluding monsters from deathmatch in g_monster.c. Fix it the same way as above, i.e.: 
+qboolean monster_start (edict_t *self)
+{
+// blinky, pets
+	if (self->monsterinfo.PetOwner && !using_pets->value)
+	{
+		G_FreeEdict (self);
+		return false;
+	}
+	else if (deathmatch->value && !dm_monsters->value)
+	{
+		
+		G_FreeEdict (self);
+		return false;
+	}
+// end blinky, pets
+
+	if ((self->spawnflags & 4) && !(self->monsterinfo.aiflags & AI_GOOD_GUY))
+
+Also we want to add a modification to monster movement in g_monster.c. In M_MoveFrame, near the top, just after it resets the think function for the next time, add code to call a pet function to handle frozen pets: 
+
+void M_MoveFrame (edict_t *self)
+{
+	mmove_t	*move;
+	int		index;
+
+	move = self->monsterinfo.currentmove;
+	self->nextthink = level.time + FRAMETIME;
+
+// blinky
+	if (!Pet_DoesMonsterMove(self))
+		return;
+// end blinky
+
+To ensure type-safety, add the include for pets at the top of g_monster.c, whilst you're in it: 
+
+#include "g_local.h"
+#include "b_pet.h"
+
+g_ai.c
+Adding targeting for pets. First, put in the header for pet functions at the top of g_ai.c: 
+// g_ai.c
+
+#include "g_local.h"
+
+// blinky, pets
+#include "b_pet.h"
+
+Now, change the name of the FindTarget function to FindTarget_Original. (What I'm doing is intercepting the calls to FindTarget, and splitting off the pets to different handling), e.g.: 
+
+// blinky, pets - changed name & put new wrapper (see below) to siphon off pets
+qboolean FindTarget_Original (edict_t * self)
+//qboolean FindTarget (edict_t *self)
+{
+	edict_t		*client;
+
+
+
+Then beneath FindTarget add the new interceptor function: 
+
+// blinky, pets
+// interceptor to siphon off pets targetting
+qboolean FindTarget (edict_t *self)
+{
+	if (self->monsterinfo.PetOwner)
+		if (0 == (self->monsterinfo.TargetCounter++ % 20))
+			return Pet_FindTarget(self);
+		else
+			return false;
+	else
+		return FindTarget_Original(self);
+}
+// end blinky, pets
+
+Also, ai_run needs to be changed so that running pets still look for enemies. In ai_run, partway down, after the if (enemy_vis) has failed, (c. line 971), change the test for changing targets in coop mode to also include pets changing targets: 
+
+	// coop will change to another enemy if visible
+// blinky, pets
+//	if (coop->value)
+	if (coop->value || self->monsterinfo.PetOwner)
+	{	// FIXME: insane guys get mad with this, which causes crashes!
+		if (FindTarget (self))
+			return;
+	}
+
+g_combat.c
+Disable monster empathy for pets. Monsters will help each other hunt, and we have to ensure that pets don't help ingame monsters against their owners. (Actually, it was quite entertaining playing until we figured out how to disable this, never being quite sure when our pets would turn on us.) 
+First, add the pet header to the top: 
+
+// g_combat.c
+
+#include "g_local.h"
+
+// blinky, pets
+#include "b_pet.h"
+
+We add a section of code to M_ReactToDamage, near the top, after the first couple of checks. 
+
+	// we now know that we are not both good guys
+// blinky, pets
+	// don't get angry at our teammembers/copets/owner
+	if (targ->monsterinfo.PetOwner)
+	{
+		if (OnSameTeam(targ, attacker))
+		{
+			// help them if appropriate
+			if (attacker->enemy)
+			{
+				if (targ->enemy && targ->enemy->client)
+					targ->oldenemy = targ->enemy;
+				targ->enemy = attacker->enemy;
+				if (!(targ->monsterinfo.aiflags & AI_DUCKED))
+					FoundTarget (targ);
+			}
+			return;
+		}
+		// fight back if appropriate
+		if (!targ->enemy)
+		{
+			targ->enemy = attacker;
+			if (!(targ->monsterinfo.aiflags & AI_DUCKED))
+				FoundTarget (targ);
+		}
+		return;
+	}
+// end blinky, pets
+
+	// if attacker is a client, get mad at them because he's good and we're not
+
+Now we add the callout to handle pets or owners dying. In Killed, just before the last line, add a call to PetKilled, e.g.: 
+
+	// blinky, pets
+	Pet_Killed(targ, attacker);
+	// end blinky, pets
+
+	targ->die (targ, inflictor, attacker, damage, point);
+
+p_client.c
+Add petcam callout. First, of course, add the pet header to the top of the file: 
+#include "g_local.h"
+#include "m_player.h"
+// blinky, pets
+#include "b_pet.h"
+
+In the ClientThink function, near the top, just after the intermission code (c. line 1606), add code to switch the player to the pet being cammed. Also change the test for the chase_target just after, to use client and not ent->client (as we've just switched ent to point to the pet being cammed). 
+
+			level.exitintermission = true;
+		return;
+	}
+
+	// blinky, petcam
+	if (ent->client->petcam)
+		ent = ent->client->petcam;
+	// blinky, petcam
+
+	pm_passent = ent;
+
+	// blinky, petcam
+	if (client->chase_target) {
+
+
+A little below this, just after the if clause for the ingame chasecam, and near the top of the else clause where it is checking movetypes, comment out the disabling code for gibs (so that the player can move while chasecamming. 
+
+		if (ent->movetype == MOVETYPE_NOCLIP)
+			client->ps.pmove.pm_type = PM_SPECTATOR;
+// blinky, petcam
+//		else if (ent->s.modelindex != 255)
+//			client->ps.pmove.pm_type = PM_GIB;
+		else if (ent->deadflag)
+			client->ps.pmove.pm_type = PM_DEAD;
+
+Further down, in the else clause for not the ingame chasecam, just after copying the mins & maxs (c. line 1669), add the callout for the petcam code, i.e.: 
+
+		VectorCopy (pm.mins, ent->mins);
+		VectorCopy (pm.maxs, ent->maxs);
+
+		// blinky, petcam
+		Pet_AdjustPetcam(client, SHORT2ANGLE(ucmd->angles[YAW]));
+
+		client->resp.cmd_angles[0] = SHORT2ANGLE(ucmd->angles[0]);
+
+Modify obituary handling for pets. In ClientObituary, add a couple new variables at the top: 
+
+	char		*message2;
+	qboolean	ff;
+// blinky
+	gclient_t	*client=0;
+	int			pet=0;
+// end blinky
+
+Further down, after the cases for being killed by something inanimate, and the suicide cases, at the beginning of the code handling killed by enemy, add code to handle the case of being killed by a pet (circa line 301): 
+
+		self->enemy = attacker;
+// blinky, pets
+//		if (attacker && attacker->client)
+		if (attacker && attacker->client)
+			client = attacker->client;
+		else if (attacker && (attacker->svflags & SVF_MONSTER) && attacker->monsterinfo.PetOwner)
+		{
+			client = attacker->monsterinfo.PetOwner->client;
+			pet = 1;
+		}
+		if (client)
+// end blinky, pets
+		{
+			switch (mod)
+			{
+			case MOD_BLASTER:
+
+After the list of weapons (c. line 383), add a default case, modify the printf to print out also the pet type if appropriate, and change the score lines to use the (new) client variable, instead of attacker->client: 
+
+			case MOD_TELEFRAG:
+				message = "tried to invade";
+				message2 = "'s personal space";
+				break;
+// blinky, pets
+			default:
+				message = "was killed by";
+				message2 = "";
+				break;
+			}
+			if (message)
+			{
+				if (pet)
+					gi.bprintf (PRINT_MEDIUM,"%s %s %s's %s%s\n", self->client->pers.netname, message, client->pers.netname, attacker->classname, message2);
+				else
+					gi.bprintf (PRINT_MEDIUM,"%s %s %s%s\n", self->client->pers.netname, message, client->pers.netname, message2);
+				if (deathmatch->value)
+				{
+					if (ff)
+						client->resp.score--;
+					else
+						client->resp.score++;
+				}
+// end blinky, pets
+				return;
+			}
+		}
+	}
+
+p_view.c
+Add code for the petcam in the SV_CalcViewOffset function, near the bottom. 
+	// absolutely bound offsets
+	// so the view can never be outside the player box
+
+// blinky petcam
+	if (!ent->client->petcam) {
+
+	if (v[0] < -14)
+		v[0] = -14;
+	else if (v[0] > 14)
+		v[0] = 14;
+	if (v[1] < -14)
+		v[1] = -14;
+	else if (v[1] > 14)
+		v[1] = 14;
+	if (v[2] < -22)
+		v[2] = -22;
+	else if (v[2] > 30)
+		v[2] = 30;
+
+	} else {
+		int i;
+		VectorSet(v,0,0,0);
+		for (i=0; i<3; i++)
+		{
+			ent->client->ps.pmove.origin[i] = ent->client->petcam->s.origin[i]*8;
+		}
+		ent->client->ps.pmove.origin[2] += ent->client->petcam->maxs[2]*8;
+	}
+// end blinky, petcam
+
+	VectorCopy (v, ent->client->ps.viewoffset);
+}
+
+Footnotes
+If you are using teams, you'll have to revise the OnSameTeam function. I earlier wrote an OnSameTeam tutorial about this subject. 
+The game monsters still use the original targeting code, which does not notice pets (pets do not become the "player of the moment"), so game monsters are at a substantial disadvantage against pets; game monsters will not attack first. 
+
+To Do
+
+
+Need to adjust pet targeting so swimmers don't target flyers, etc. 
+Would be nice if followers quit jostling you 
+Would be nice to have sentry mode 
+Feedback
+I welcome any and all feedback - including suggested changes or comments to add to the code :) Send email to me at Blinky. 
+
+Back to tutorials list 

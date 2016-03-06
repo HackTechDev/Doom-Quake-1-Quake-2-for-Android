@@ -1,0 +1,92 @@
+Quake DeveLS - Range Finder
+
+Author: Chris Hilton
+Difficulty: Medium
+
+If you're a big, bad space marine, you ought to have a rangefinder in your HUD, right? Here's a quick and easy patch to add one. Thanks to Decker for the Statusbar tutorial that this patch borrows heavily from. First, we'll define the rangefinder's entry in the stats array. Edit q_shared.h and add the following at about line 803 (+'s indicate lines added).
+
+ #define        STAT_FRAGS                              14
+ #define        STAT_FLASHES                    15              // cleared each frame, 1 = health, 2 = armor
+ 
++// CCH: rangefinder stat
++#define        STAT_RANGEFINDER                16
++
+ #define        MAX_STATS                               32
+
+Now, we need to fill that stat entry with the information we want to display, namely the range to whatever the crosshair is pointing at. We'll do this by editing the G_SetStats() function in p_hud.c. At the top of the function we'll add the following declarations for variables that we'll be using later.
+
+        int                     index, cells;
+        int                     power_armor_type;
+ 
++       // CCH: local variables for rangefinder
++       vec3_t          start, forward, end;
++       trace_t         tr;
++
+        //
+        // health
+        //
+
+Now for our range calculation. We'll find this by tracing a line from our viewpoint to a point 8192 units ahead of us and seeing how far the line traces. Add the following code to the end of G_SetStats().
+
+                ent->client->ps.stats[STAT_HELPICON] = gi.imageindex (ent->client->pers.weapon->icon);
+        else
+                ent->client->ps.stats[STAT_HELPICON] = 0;
++
++       //
++       // CCH: rangefinder
++       //
++       VectorCopy(ent->s.origin, start);
++       start[2] += ent->viewheight;
++       AngleVectors(ent->client->v_angle, forward, NULL, NULL);
++       VectorMA(start, 8192, forward, end);
++       tr = gi.trace(start, NULL, NULL, end, ent, MASK_SHOT|CONTENTS_SLIME|CONTENTS_LAVA);
++       // check for sky and max the range if found
++       if ( tr.surface && (tr.surface->flags & SURF_SKY) )
++               ent->client->ps.stats[STAT_RANGEFINDER] = 9999;
++       else
++               ent->client->ps.stats[STAT_RANGEFINDER] = (int)(tr.fraction * 8192);
+ }
+
+Now, how this works. First, we locate our start point by adding our viewheight to our origin. Then we use AngleVectors() to give us our forward viewing angle. We then use VectorMA() to multiply this forward unit vector by 8192, add it to the start position, and store this endpoint in end.
+
+gi.trace() performs the trace for us, from start to end, returning the information it finds in a trace_t struct. The two NULLs that are passed to gi.trace() replace bounding box arguments; we don't want to trace a bounding box through the world, just a straight line. ent is passed as the entity to ignore collisions with (we don't need the range to ourself!) and the final argument is the mask to indicate what surfaces should stop the trace. In our case, we're stopping wherever a shot would stop, plus stopping at slime and lava.
+
+Finally, for some added realism, we're going to check if we're pointed at the sky. Now, a sky surface might be only 100 units away from you in the game, but that isn't how it should look in the rangefinder! We check if there's a surface that was run into in the trace struct and then we check if that surface has the sky flag set. If it does, max the range to the 4-digit limit of 9999. Otherwise, use tr.fraction to calculate how far along the trace we got before being stopped. In either case, this range is kept in our STAT_RANGEFINDER entry in the player's ps.stats array.
+
+Okay, range is all calculated, just gotta put it on the screen now. Easy enough, just modify the end of the statusbar string in g_spawn.c at about line 672 like so.
+
+ "      xv      148 "
+ "      pic     11 "
+ "endif "
++
++// CCH: rangefinder
++"if 16 "
++"   xv 210 "
++"      num 4   16 "
++"   xv 234 "
++"   yb -59 "
++"   string RANGE "
++"endif "
+ ;
+ 
+ char *dm_statusbar =
+
+For deathmatch play, just add the same thing to the end of the deathmatch statusbar at about line 735.
+
+ "xr    -50 "
+ "yt 2 "
+ "num 3 14"
++
++// CCH: rangefinder
++"if 16 "
++"   xv 210 "
++"      num 4   16 "
++"   xv 234 "
++"   yb -59 "
++"   string RANGE "
++"endif "
+ ;
+
+That's it. Your HUD is now rangefinder enabled. Full source code, patch file, and DLL at http://www.jump.net/~dctank.
+
+Tutorial by Chris Hilton . 

@@ -1,0 +1,355 @@
+Quake DeveLS - Scanner
+
+Author: Yaya (-*-)
+Difficulty: Medium
+
+NOTE: The file graphics.zip must be downloaded in order for this tutorial to work!
+
+This Quake mod is *currently* designed for Deatchmatch only
+
+Preamble
+--------
+Recently, the idea for a Quake2 scanner came up and I had to have a go at implementing it. Below is my first attempt at implementing such a device. There's a fair bit too it, so mind as you go ! :)
+
+First, create a file called "scanner.h" in your Quake 2 DLL project workspace. Into this, put the following lines of code :
+
+// scanner consts & macros
+
+#define	SCANNER_UNIT                   32
+#define	SCANNER_RANGE                  100
+#define	SCANNER_UPDATE_FREQ            1
+#define	PIC_SCANNER                    "pics/scanner/scanner.pcx"
+#define	PIC_SCANNER_TAG                "scanner/scanner"
+#define	PIC_DOT                        "pics/scanner/dot.pcx"
+#define	PIC_DOT_TAG                    "scanner/dot"
+#define	PIC_ACIDDOT                    "pics/scanner/aciddot.pcx"
+#define	PIC_ACIDDOT_TAG                "scanner/aciddot"
+#define	PIC_INVDOT                     "pics/scanner/invdot.pcx"
+#define	PIC_INVDOT_TAG                 "scanner/invdot"
+#define	PIC_QUADDOT                    "pics/scanner/quaddot.pcx"
+#define	PIC_QUADDOT_TAG                "scanner/quaddot"
+#define	PIC_DOWN                       "pics/scanner/down.pcx"
+#define	PIC_DOWN_TAG                   "scanner/down"
+#define	PIC_UP                         "pics/scanner/up.pcx"
+#define	PIC_UP_TAG                     "scanner/up"
+#define	PIC_SCANNER_ICON               "pics/scanner/scanicon.pcx"
+#define	PIC_SCANNER_ICON_TAG           "scanner/scanicon"
+#define	SAFE_STRCAT(org,add,maxlen)    if ((strlen(org) + strlen(add)) < maxlen)    strcat(org,add);
+#define	LAYOUT_MAX_LENGTH              1400
+
+// scanner functions
+
+void		Toggle_Scanner (edict_t *ent);
+void		ShowScanner(edict_t *ent,char *layout);
+void		ClearScanner(gclient_t *client);
+qboolean	Pickup_Scanner (edict_t *ent, edict_t *other);
+
+
+Explanation : These lines of code are the defining parameters for how the scanner will operate, and function prototypes. I like to package up my code like this so that I can easily change things. Don't worry about their exact function yet, as they'll be explained as they are used in this tutorial.
+
+Next insert the following line at the end of the "client_persistant_t" structure in "g_local.h"
+
+int	scanner_active;
+
+
+
+Explanation : This will hold the status for the scanner in the clients structure. Bit 0 will flag the on/off state, and bit 1 the "just changed" flag (for immediate update of the scanner when switching on or off the scores or inventory)
+
+Now insert this line at the end of the function "InitClientPersistant" in the file "p_client.c" :
+
+		ClearScanner(client);
+
+
+and this as the first line in function "player_die" in "p_client.c" :
+
+
+		ClearScanner(self->client);
+
+
+
+and these in a new file called "scanner.c" :
+
+
+#include "g_local.h"
+#include "scanner.h"
+
+void	ClearScanner(gclient_t *client)
+{
+	client->pers.scanner_active = 0;
+}
+
+
+
+Explanation : Simply clear the players scanner when spawned and when the player dies.
+
+Now onto something more meaty... :)
+
+Our scanner is going to use bitmap graphics for its display, and for once, the in-built resources of Quake 2 aren't going to be enough. If you download the file "graphics.zip", you'll find some graphics as drawn by me ! Btw, I'm a programmer and not an artist ... :)
+
+Quake 2 can load in graphics in the PCX format so open the Zip file and extract the contents to your Quake\baseq2 directory, preserving the internal zip directory structure. You should now have files like :
+
+	\quake2\baseq2\pics\scanner\scanner.pcx
+	\quake2\baseq2\pics\scanner\dot.pcx
+	...
+
+
+
+Through trial and error, I found the width of a bitmap should be a multiple of 8, or certainly no smaller, and that the transparent colour is the last one in the palette. Also note, that you'll have to unpack this zip to every Quake\baseq2 directory on each machine connected to the game so that all players can access these client-side resources.
+
+Well, I suppose we'd better load them. Put the following lines at the end of the function "SP_worldspawn" in g_spawn.c
+
+		gi.imageindex (PIC_SCANNER);
+		gi.imageindex (PIC_DOT);
+		gi.imageindex (PIC_INVDOT);
+		gi.imageindex (PIC_QUADDOT);
+		gi.imageindex (PIC_UP);
+		gi.imageindex (PIC_DOWN);
+
+
+These will cache our new graphics into the Quake game system, using the file name specifications (see "scanner.h"). Quake will look for files in the current game's directory structure (this defaults to the "baseq2" directory). We'll use these later.
+
+Now drop the following into the function "ClientCommand" in "g_cmds.c", along with the standard client command checks.
+
+	else if (Q_stricmp (cmd, "scanner") == 0)
+		Toggle_Scanner (ent);
+
+
+and the following into "scanner.c" :
+
+void Toggle_Scanner (edict_t *ent)
+{
+	if ((!ent->client) || (ent->health<=0))
+		return;
+
+	// toggle low on/off bit (and clear scores/inventory display if required)
+	if ((ent->client->pers.scanner_active ^= 1) & 1)
+	{
+		ent -> client -> showinventory	= 0;
+		ent -> client -> showscores		= 0;
+	}
+
+	// set "just changed" bit
+	ent->client->pers.scanner_active |= 2;
+}
+
+
+Explanation : This will toggle the scanner low on/off bit. If that bit is set, we're going to clear the variables that flag the display of the scores (in deathmatch) and the inventory. The reason for this is that this mod is going to "piccy-back" these display methods to display the scanner. Obviously we don't want the scanner on with either of these panels. (We're going to be implementing code that will be used by the "gi.WriteByte(svc_layout)" function. For an explanation of this method and the parameters involved, see druid's excellent "Enhanced Deathmatch Scoreboard" tutorial)
+
+To make sure the scanner is removed when the inventory is selected, put these lines at the end of the function "Cmd_Inven_f" in "g_cmds.c" (we'll handle the deathmatch score board case shortly)
+
+	if (cl->pers.scanner_active & 1)
+		cl->pers.scanner_active = 2;
+
+
+Now move to the function "DeathmatchScoreboardMessage" in "p_hud.c". These code is responsible for building the sprite display list for the top frags. Put these as the first lines in this function :
+
+	if (ent -> client -> showscores || ent -> client -> showinventory)
+		if (ent->client->pers.scanner_active)
+			ent->client->pers.scanner_active = 2;
+
+
+Explanation : If the scores or inventory come on while the scanner is active, turn it off and flag for an immediate update.
+
+We now need to wedge our code into this routines. Just after the above put :
+
+	if (ent -> client -> showscores)
+	{
+
+
+We're now going to make the scores an optional display. Note : the opening brace. Move to the end of the function and add the following :
+
+	// added ...
+	}
+	else
+		*string = 0;
+
+	// Scanner active ?
+	if (ent->client->pers.scanner_active & 1)
+		ShowScanner(ent,string);
+
+	// normal quake code ...	
+	gi.WriteByte (svc_layout);
+	gi.WriteString (string);
+
+Explanation : If the scores aren't to be displayed clear the stats string. Note : the closing brace matching the one earlier. If the scanner is active, then add it to the stat string before sending out to the client.
+
+Next we need to alter how and when Quake 2 calls the deathmatch score board message display. Alter the lines in "G_SetStats" in "p_hud.c" (the code near the comment : // layouts)
+
+		if (ent->client->pers.health <= 0 || level.intermissiontime
+			|| ent->client->showscores)
+
+
+to :
+
+		if (ent->client->pers.health <= 0 || level.intermissiontime
+			|| ent->client->showscores || ent->client->pers.scanner_active)
+
+
+Explanation : Bit 0 of "ent->client->ps.stats[STATS_LAYOUTS] is the scoreboard update flag, which we need to flag as true if the scanner is on.
+
+Now go to the end of funtion "ClientEndServerFrame" in "p_view.c" and change :
+
+	if (ent->client->showscores && deathmatch->value && !(level.framenum & 31) )
+	{
+		DeathmatchScoreboardMessage (ent, ent->enemy);
+		gi.unicast (ent, false);
+	}
+
+
+to :
+
+	if (( (ent->client->showscores || ent->client->pers.scanner_active) && deathmatch->value && 
+		!(level.framenum & SCANNER_UPDATE_FREQ) ) || (ent->client->pers.scanner_active & 2))
+	{
+		DeathmatchScoreboardMessage (ent, ent->enemy);
+		gi.unicast (ent, false);
+
+		// added ...
+		ent->client->pers.scanner_active &= ~2;
+	}
+
+
+Explanation : This will cause the death match score board message code to be called when the scanner is active. Note the update frequency constant. Normally, Quake updates the scoreboard every 32nd frame - we can change this to cause a smoother scanner display. This works fine on a local LAN (I have the frequency set to every other frame in "scanner.h"), but you may need to experiment with this figure on web play. (I'm unable to practically do this, but I've made the code easy to change)
+
+Right, we're just about getting there ! We've now got all the auxiliary routines in, and just need to include "scanner.h" in the following Quake files (put the line '#include "scanner.h"' just after any other includes)
+
+	g_cmds.c
+	g_spawn.c
+	p_client.c
+	p_hud.c
+	p_view.c
+
+
+Phew ! Fancy some scanner code ? :) Here's the scanner display function you drop into "scanner.c" :
+
+void ShowScanner(edict_t *ent,char *layout)
+{
+	int	i;
+
+	edict_t	*player = g_edicts;
+
+	char	stats[64],
+			*tag;
+
+	vec3_t	v;
+
+	// Main scanner graphic draw
+	Com_sprintf (stats, sizeof(stats),"xv 80 yv 40 picn %s ", PIC_SCANNER_TAG);
+	SAFE_STRCAT(layout,stats,LAYOUT_MAX_LENGTH);
+
+	// Players dots
+	for (i=0 ; i < game.maxclients ; i++)
+	{
+		float	len;
+
+		int		hd;
+
+		// move to player edict
+		player++;
+
+		// in use 
+		if (!player->inuse || !player->client || (player == ent) || (player -> health <= 0))
+			continue;
+
+		// calc player to enemy vector
+		VectorSubtract (ent->s.origin, player->s.origin, v);
+
+		// save height differential
+		hd = v[2] / SCANNER_UNIT;
+
+		// remove height component
+		v[2] = 0;
+
+		// calc length of distance from top down view (no z)
+		len = VectorLength (v) / SCANNER_UNIT;
+
+		// in range ?
+		if (len <= SCANNER_RANGE)
+		{
+			int		sx,
+					sy;
+
+			vec3_t	dp;
+
+			vec3_t	normal = {0,0,-1};
+
+
+			// normal vector to enemy
+			VectorNormalize(v);
+
+			// rotate round player view angle (yaw)
+			RotatePointAroundVector( dp, normal, v, ent->s.angles[1]);
+
+			// scale to fit scanner range (80 = pixel range of scanner)
+			VectorScale(dp,len*80/SCANNER_RANGE,dp);
+
+			// calc screen (x,y) (2 = half dot width)
+			sx = (160 + dp[1]) - 2;
+			sy = (120 + dp[0]) - 2;
+
+			// setup dot graphic
+			tag = PIC_DOT_TAG;
+
+			if (player->client->quad_framenum > level.framenum)
+				tag = PIC_QUADDOT_TAG;
+
+			if (player->client->invincible_framenum > level.framenum)
+				tag = PIC_INVDOT_TAG;
+
+			// Set output ...
+			Com_sprintf (stats, sizeof(stats),"xv %i yv %i picn %s ",
+					sx,
+					sy,
+					tag);
+
+			SAFE_STRCAT(layout,stats,LAYOUT_MAX_LENGTH);
+
+			// clear stats
+			*stats = 0;
+
+			// set up/down arrow
+			if (hd < 0)
+				Com_sprintf (stats, sizeof(stats),"yv %i picn %s ",
+					sy - 5,PIC_UP_TAG);
+			else if (hd > 0)
+				Com_sprintf (stats, sizeof(stats),"yv %i picn %s ",
+					sy + 5,PIC_DOWN_TAG);
+
+			// any up/down ?
+			if (*stats)
+				SAFE_STRCAT(layout,stats,LAYOUT_MAX_LENGTH);
+		}
+	}
+}
+
+
+Explanation : First add the main graphic to the display out. This graphic is 160x160 pixels so the screen coords (top left of sprite display) are at (80,40) on the virtual screen which is 320x200 pixels. We add a reference to the graphic using the _TAG constants which are the file name without the extension (in this case .PCX). We then added this string to the output layout string. The macro SAFE_STRCAT is used to ensure no overflow of the string buffer. Note : this maximum length of 1400 bytes was determined by a comment I found in the code ...! Now we loop through the active players (ignoring self), to find those in range (from the top-down view). I've used metres as my units for the range, so I scale to this Quake's coords by dividing by SCANNER_UNIT. (32 units is about one metre in Quake's world). If in range, we rotate the normalised vector to the enemy, by the players view Yaw angle (the left/right facing angle), to give our on-screen dot position (we scale it by scanner pixel radius to fit)
+
+Now we've got the on-screen (x,y), we can work out the graphic to display. I've done three types of scanner "dot": for a "normal" player; player with Quad Damage and player with Invulnerability. This information is now added to the layout string. For an extra touch, we're going to add a small arrow to show if the enemy is above or below (to the nearest metre). This follows the same methods.
+
+And that's about it ! :) The only thing left is for you to bind "cmd scanner" to a suitable key and boot-up Quake 2 !! It's a long tutorial but introduces some handy methods, and there are loads of possibilities for further modifications :
+
+	1) Display different information - e.g. Proximity Mine locations (see Chris Hilton's tutorial)
+
+	2) Intelligent positioning on large-screen displays ? (it's currently centred and non-scaled)
+
+	3) Adjustable scanner ranges (maybe using some cells in the process ?)
+
+	4) Single Player adaptation.
+
+	5) Work out how to allow Escape to remove the scanner and bring up the options.
+	   Currently, you'll have to turn the scanner off first. If anyone knows a work-around,
+	   please mail me.  :)
+
+
+
+Enjoy !
+
+Tutorial by Yaya (-*-) .
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question? Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for their great help and support with hosting.
+Best viewed with Netscape 4

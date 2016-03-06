@@ -1,0 +1,85 @@
+Quake DeveLS - Push'em Around
+
+Author: Chris Hilton
+Difficulty: Easy
+
+Let's Do It...
+
+Here's an extremely easy patch for pushing and pulling monsters and players around. This could be the basis for tractor and pressor beam weapons, which could be really fun on a level with a lot of lava.
+
+First, let's add our new "push" and "pull" commands by modifying the ClientCommand() function in g_cmds.c. ('+' signs indicate lines added)
+
+ 		Cmd_PutAway_f (ent);
+ 	else if (Q_stricmp (cmd, "wave") == 0)
+ 		Cmd_Wave_f (ent);
++
++	else if (Q_stricmp (cmd, "push") == 0)
++		Cmd_Push_f (ent);
++	else if (Q_stricmp (cmd, "pull") == 0)
++		Cmd_Pull_f (ent);
++
+ 	else if (Q_stricmp (cmd, "gameversion") == 0)
+ 	{
+ 		gi.cprintf (ent, PRINT_HIGH, "%s : %s\n", GAMEVERSION, __DATE__);
+
+This simply allows you to type "cmd push" and "cmd pull" at the console to call our push and pull functions below (bind those commands to keys for easy access, kiddies!).
+
+Now for the Cmd_Push_f() function. I simply added the following code before ClientCommand() in g_cmds.c.
+
++/*
++=================
++Cmd_Push_f
++=================
++*/
++void Cmd_Push_f (edict_t *ent)
++{
++	vec3_t	start;
++	vec3_t	forward;
++	vec3_t	end;
++	trace_t	tr;
++
++	VectorCopy(ent->s.origin, start);
++	start[2] += ent->viewheight;
++	AngleVectors(ent->client->v_angle, forward, NULL, NULL);
++	VectorMA(start, 8192, forward, end);
++	tr = gi.trace(start, NULL, NULL, end, ent, MASK_SHOT);
++	if ( tr.ent && ((tr.ent->svflags & SVF_MONSTER) || (tr.ent->client)) )
++	{
++		VectorScale(forward, 5000, forward);
++		VectorAdd(forward, tr.ent->velocity, tr.ent->velocity);
++	}
++}
+
+Basically, this function traces a line from the player's viewpoint to a point 8192 units ahead of them. If that trace runs into an entity and that entity is a monster or player, we add to that entity's velocity in this player's forward direction and a speed of 5000. That'll get them flying!
+
+Next is our Cmd_Pull_f() function, which I placed right after Cmd_Push_f() in g_cmds.c.
+
++/*
++=================
++Cmd_Pull_f
++=================
++*/
++void Cmd_Pull_f (edict_t *ent)
++{
++	vec3_t	start;
++	vec3_t	forward;
++	vec3_t	end;
++	trace_t	tr;
++
++	VectorCopy(ent->s.origin, start);
++	start[2] += ent->viewheight;
++	AngleVectors(ent->client->v_angle, forward, NULL, NULL);
++	VectorMA(start, 8192, forward, end);
++	tr = gi.trace(start, NULL, NULL, end, ent, MASK_SHOT);
++	if ( tr.ent && ((tr.ent->svflags & SVF_MONSTER) || (tr.ent->client)) )
++	{
++		VectorScale(forward, -5000, forward);
++		VectorAdd(forward, tr.ent->velocity, tr.ent->velocity);
++	}
++}
+
+This function is exactly the same as Cmd_Push_f(), but the speed multiplier is -5000 so that the entity is pulled towards us rather than pushed.
+
+Pretty simple, huh? Try it out and you'll be flinging your friends and monsters far and near. Full source and patch file at http://www.jump.net/~dctank.
+
+Chris Hilton . 

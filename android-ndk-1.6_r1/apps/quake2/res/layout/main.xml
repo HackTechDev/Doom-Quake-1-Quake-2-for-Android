@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AbsoluteLayout
+android:id="@+id/widget0"
+android:layout_width="fill_parent"
+android:layout_height="fill_parent"
+xmlns:android="http://schemas.android.com/apk/res/android"
+>
+<Button
+android:id="@+id/button_start"
+android:layout_width="200px"
+android:layout_height="wrap_content"
+android:text="Start Quake2"
+android:layout_x="130px"
+android:layout_y="250px"
+>
+</Button>
+
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="For the settings, press the menu button."
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="200px"
+>
+</TextView>
+
+<TextView
+android:id="@+id/textview_title"
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="Quake2 for Android"
+android:textSize="21sp"
+android:layout_x="110px"
+android:layout_y="17px"
+android:textStyle="bold"
+android:textColor="#ff0000"
+>
+</TextView>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="Ported to Android by Julien Eyriès (jeyries@gmail.com)"
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="65px"
+android:autoLink="all"  
+android:linksClickable="true"  
+>
+</TextView>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="with help from Guillaume Legris and others ..."
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="100px"
+>
+</TextView>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="for more information on setup, visit this page :"
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="135px"
+>
+</TextView>
+<TextView
+android:layout_width="wrap_content"
+android:layout_height="wrap_content"
+android:text="http://sites.google.com/site/quake2android"
+android:textSize="14sp"
+android:layout_x="50px"
+android:layout_y="170px"
+android:autoLink="all"  
+android:linksClickable="true"  
+>
+</TextView>
+</AbsoluteLayout>

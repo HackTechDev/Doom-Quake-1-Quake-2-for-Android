@@ -1,0 +1,58 @@
+Version 1.9
+Pas de sensor
+
+1) Modification du code source :
+
+Ouvrir : 
+
+~/quake2android/src/com/jeyries/quake2/Quake2.java
+
+Chercher : 
+
+enable_sensor = true,
+
+Remplacer par : 
+
+enable_sensor = false,
+
+Chercher : 
+
+public static final String version = "1.8" ;
+
+Remplacer par : 
+
+public static final String version = "1.9" ;
+
+2) Compiler le .apk
+
+3) Brancher le téléphone portable avec le câble USB.
+
+4) Copier le fichier .apk :
+
+lesanglier@station66:~/ANDROID/android-ndk-1.6_r1/apps/quake2/bin$ adn install ./quake2.apk
+
+5) Copier le fichier .pak : 
+
+$ adb push ~/Quake/Modif_pak0_prydon/pak0.pak /sdcard/baseq2
+
+6) Copier les fichiers de configuration, videos, modèls, etc :
+
+De ~/JEUX/QUAKE2/Quake2/baseq2 vers /sdcard/baseq2
+
+7) Touches de déplacement : 
+
+Q = Tourner à gauche
+S = Tourner à droite 
+Z = Avance 
+W = Reculer
+Trackball = Tirer
+Espace = Sauter
+C = S'accroupir
+Retour = Menu principale
+
+En mode "console" :
+Caméra à la troisième personne : chasecam on
+Retour au jeu : Retour - Retour
+
+En mode "menu" : 
+Trackball = Haut/bas/sélection

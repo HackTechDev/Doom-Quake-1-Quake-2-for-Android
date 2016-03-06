@@ -1,0 +1,66 @@
+Foot Prints
+
+
+--------------------------------------------------------------------------------
+
+first of all you have to model a foot print (see the link for my pathetic attempt) then change (in G_SetClientEvent) in p_view.c
+
+if ( ent->groundentity && xyspeed > 225)
+{
+if ( (int)(current_client->bobtime+bobmove) != bobcycle )
+ent->s.event = EV_FOOTSTEP;
+}
+
+to
+
+
+if ( ent->groundentity && xyspeed > 225)
+{
+if ( (int)(current_client->bobtime+bobmove) != bobcycle )
+ent->s.event = EV_FOOTSTEP;
+AngleVectors(ent->s.angles,NULL,tmp,NULL);
+tmp[2]=0;
+VectorNormalize(tmp);
+if (ent->client->left)
+{
+VectorScale(tmp,5,tmp); 
+ent->client->left=false;
+}
+else
+{
+VectorScale(tmp,-5,tmp);
+ent->client->left=true;
+}
+VectorAdd(tmp,temp,tmp);
+footprint=G_Spawn();
+footprint->s.modelindex = gi.modelindex ("models/footprint.md2");
+footprint->s.skinnum=0;
+VectorCopy(ent->s.origin,footprint->s.origin);
+VectorAdd(footprint->s.origin,tmp,footprint->s.origin);
+VectorAdd(footprint->s.origin,tmp,tmp);
+tr=gi.trace(ent->s.origin,NULL,NULL,tmp,NULL,MASK_SOLID);
+VectorCopy(tr.plane.normal,footprint->s.angles);
+footprint->s.angles[2]=ent->s.angles[2];
+footprint->s.angles[1]=ent->s.angles[1];
+footprint->nextthink=level.time+5;
+footprint->think=G_FreeEdict;
+gi.linkentity(footprint);
+}
+
+After that add 
+edict_t *footprint;
+vec3_t tmp;
+vec3_t temp={0,0,-24};
+trace_t tr;
+to the begining of that function.
+
+
+finally add qboolean left; into the client structure in g_local.h
+
+
+
+then just walk around a bit 
+
+--------------------------------------------------------------------------------
+
+Resources

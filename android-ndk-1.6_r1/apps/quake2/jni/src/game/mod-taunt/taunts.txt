@@ -1,0 +1,45 @@
+[ADJECTIVES]
+a smelly
+a bitchy
+an irate
+a pissed
+a hot and bothered
+a menstruating
+an angry
+a pirated
+a retarded
+a vibrating
+a crazy
+an intellectual
+a malfunctioning
+a boiling
+
+[NOUNS]
+_Zen Of Graphics Programming_
+moose
+Direct3D program
+engineer
+copy of Duke Nukem 3D
+internet
+Mac
+jar of Vaseline
+dork
+computer science major
+Troopeux TC
+goat
+Sound Blaster AWE 64
+Quad Damage
+Strogg female
+
+[VERBS]
+beats
+blinds
+greases
+harms
+confuses
+attacks
+frags
+explodes
+boggles
+defeats
+damages

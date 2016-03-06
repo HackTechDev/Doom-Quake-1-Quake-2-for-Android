@@ -1,0 +1,482 @@
+Visual Weapon Switching
+I've said it before, and I'll say it again, I really don't like Quake 3 all that much, but I have to agree with my friends when they say that they like the way it switches weapons. As you choose your new weapon, a set of icons appear near the centre of the screen and you can see the one that you are going to use. Many people don't like to take their eyes off the action at the centre of the screen to look at the icons at the bottom.
+
+Just for the benefit of those friends I add this mod and the next one (fast weapon switching) to my quake2 mods.
+
+Here's a screen shot of the system in action, click to see the full detail. 	
+There is space for 11 icons across the screen, if you have less than 11 items to choose from, the list simply appears smaller. The icons display whenever you use invnext, invprev, invnextw, invprevw, invnextp, invprevp, weapnext, weapprev and weaplast. The icons disappear after 1 second, but if you use an inventory or weapon command again within that time, the icons effectively scroll left or right. There is a marker indicating the selected item, and the name of the selected item appears just above the cross hairs.
+
+Make the following changes. 
+For each file (named in bold), find the fragment
+of code listed, and make the changes marked by the '// C14' comments
+q_shared.h:
+
+#define  STAT_FRAGS        14
+#define  STAT_FLASHES      15    // cleared each frame, 1 = health, 2 = armor
+#define STAT_CHASE        16
+#define STAT_SPECTATOR      17
+// C14 Start of New Code
+#define STAT_FAST_PREV5   20
+#define STAT_FAST_PREV4   21
+#define STAT_FAST_PREV3   22
+#define STAT_FAST_PREV2   23
+#define STAT_FAST_PREV1   24
+#define STAT_FAST         25
+#define STAT_FAST_NEXT1   26
+#define STAT_FAST_NEXT2   27
+#define STAT_FAST_NEXT3   28
+#define STAT_FAST_NEXT4   29
+#define STAT_FAST_NEXT5   30
+#define STAT_FAST_NAME    31
+// C14 End of New Code
+
+g_cmds.c;
+
+#include "g_local.h"
+#include "m_player.h"
+// C14 Start of New Code
+void trimicons(int *icons)
+{
+  if (icons[6] == icons[5]) {
+    icons[6] = -1;
+    icons[4] = -1;
+    icons[7] = -1;
+    icons[3] = -1;
+    icons[8] = -1;
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[4] == icons[6]) {
+    icons[4] = -1;
+    icons[7] = -1;
+    icons[3] = -1;
+    icons[8] = -1;
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[7] == icons[4]) {
+    icons[7] = -1;
+    icons[3] = -1;
+    icons[8] = -1;
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[3] == icons[7]) {
+    icons[3] = -1;
+    icons[8] = -1;
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[8] == icons[3]) {
+    icons[8] = -1;
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[2] == icons[8]) {
+    icons[2] = -1;
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[9] == icons[2]) {
+    icons[9] = -1;
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[1] == icons[9]) {
+    icons[1] = -1;
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[10] == icons[1]) {
+    icons[10] = -1;
+    icons[0] = -1;
+  }
+  else if (icons[0] == icons[10]) {
+    icons[0] = -1;
+  }
+
+}
+
+void c14_SetFastIcons(edict_t *ent, int itemtype)
+{
+  gclient_t *cl;
+  int i, index;
+  gitem_t *it;
+  int icons[11];
+  int iconindex;
+
+  cl = ent->client;
+
+  icons[5] = cl->pers.selected_item;
+  for (iconindex = 6; iconindex < 11; iconindex++) {
+    icons[iconindex] = -1;
+    for (i = 1;  i <= MAX_ITEMS; i++) {
+      index = (icons[iconindex-1] + i) % MAX_ITEMS;
+      if (!cl->pers.inventory[index])
+        continue;
+      it = &itemlist[index];
+      if (!it->use)
+        continue;
+      if (!(it->flags & itemtype))
+        continue;
+      icons[iconindex] = index;
+      break;
+    }
+  }
+
+  for (iconindex = 4; iconindex >= 0; iconindex--) {
+    icons[iconindex] = -1;
+    for (i = 1;  i <= MAX_ITEMS; i++) {
+      index = (icons[iconindex+1] + MAX_ITEMS -  i) % MAX_ITEMS;
+      if (!cl->pers.inventory[index])
+        continue;
+      it = &itemlist[index];
+      if (!it->use)
+        continue;
+      if (!(it->flags & itemtype))
+        continue;
+      icons[iconindex] = index;
+      break;
+    }
+  }
+
+  trimicons(icons);
+
+  for (i = 0; i < 11; i++) {
+    if (icons[i] == -1)
+      ent->client->ps.stats[STAT_FAST_PREV5 + i] = 0;
+    else
+      ent->client->ps.stats[STAT_FAST_PREV5 + i] =
+        gi.imageindex((&itemlist[icons[i]])->icon);
+  }
+
+  ent->client->fs_frame = level.framenum + 10;
+  ent->client->ps.stats[STAT_FAST_NAME] = CS_ITEMS + icons[5];
+  return;
+}
+
+void c14_SetFastWIcons(edict_t *ent)
+{
+  gclient_t *cl;
+  int i, index;
+  gitem_t *it;
+  int icons[11];
+  int iconindex;
+
+  cl = ent->client;
+
+  if (!cl->newweapon)
+    return;
+
+  icons[5] = ITEM_INDEX(cl->newweapon);
+  for (iconindex = 6; iconindex < 11; iconindex++) {
+    icons[iconindex] = -1;
+    for (i = 1;  i <= MAX_ITEMS; i++) {
+      index = (icons[iconindex-1] + i) % MAX_ITEMS;
+      if (!cl->pers.inventory[index])
+        continue;
+      it = &itemlist[index];
+      if (!it->use)
+        continue;
+      if (!(it->flags & IT_WEAPON))
+        continue;
+      icons[iconindex] = index;
+      break;
+    }
+  }
+
+  for (iconindex = 4; iconindex >= 0; iconindex--) {
+    icons[iconindex] = -1;
+    for (i = 1;  i <= MAX_ITEMS; i++) {
+      index = (icons[iconindex+1] + MAX_ITEMS - i) % MAX_ITEMS;
+      if (!cl->pers.inventory[index])
+        continue;
+      it = &itemlist[index];
+      if (!it->use)
+        continue;
+      if (!(it->flags & IT_WEAPON))
+        continue;
+      icons[iconindex] = index;
+      break;
+    }
+  }
+
+  trimicons(icons);
+
+  for (i = 0; i < 11; i++) {
+    if (icons[i] == -1)
+      ent->client->ps.stats[STAT_FAST_PREV5 + i] = 0;
+    else
+      ent->client->ps.stats[STAT_FAST_PREV5 + i] =
+        gi.imageindex((&itemlist[icons[i]])->icon);
+  }
+
+  ent->client->fs_frame = level.framenum + 10;
+  ent->client->ps.stats[STAT_FAST_NAME] = CS_ITEMS + icons[5];
+  return;
+}
+
+// C14 End of New Code
+
+g_cmds.c;
+
+void SelectNextItem (edict_t *ent, int itflags)
+{
+  gclient_t  *cl;
+  int      i, index;
+  gitem_t    *it;
+
+  cl = ent->client;
+
+  if (cl->chase_target) {
+    ChaseNext(ent);
+    return;
+  }
+
+  // scan  for the next valid one
+  for (i=1 ; i<=MAX_ITEMS ; i++)
+  {
+    index = (cl->pers.selected_item + i)%MAX_ITEMS;
+    if (!cl->pers.inventory[index])
+      continue;
+    it = &itemlist[index];
+    if (!it->use)
+      continue;
+    if (!(it->flags & itflags))
+      continue;
+
+    cl->pers.selected_item = index;
+    c14_SetFastIcons(ent, itflags);   // C14 Add this line
+    return;
+  }
+
+  cl->pers.selected_item = -1;
+}
+
+void SelectPrevItem (edict_t *ent, int itflags)
+{
+  gclient_t  *cl;
+  int      i, index;
+  gitem_t    *it;
+
+  cl = ent->client;
+
+  if (cl->chase_target) {
+    ChasePrev(ent);
+    return;
+  }
+
+  // scan  for the next valid one
+  for (i=1 ; i<=MAX_ITEMS ; i++)
+  {
+    index = (cl->pers.selected_item + MAX_ITEMS - i)%MAX_ITEMS;
+    if (!cl->pers.inventory[index])
+      continue;
+    it = &itemlist[index];
+    if (!it->use)
+      continue;
+    if (!(it->flags & itflags))
+      continue;
+
+    cl->pers.selected_item = index;
+    c14_SetFastIcons(ent, itflags);  // C14 Add this line
+    return;
+  }
+
+  cl->pers.selected_item = -1;
+}
+
+g_cmds.c;
+
+void Cmd_WeapPrev_f (edict_t *ent)
+{
+  gclient_t  *cl;
+  int      i, index;
+  gitem_t    *it;
+  int      selected_weapon;
+
+  cl = ent->client;
+
+  if (!cl->pers.weapon)
+    return;
+
+  selected_weapon = ITEM_INDEX(cl->pers.weapon);
+
+  // scan  for the next valid one
+  for (i=1 ; i<=MAX_ITEMS ; i++)
+  {
+    index = (selected_weapon + i)%MAX_ITEMS;
+    if (!cl->pers.inventory[index])
+      continue;
+    it = &itemlist[index];
+    if (!it->use)
+      continue;
+    if (! (it->flags & IT_WEAPON) )
+      continue;
+    it->use (ent, it);
+//    if (cl->pers.weapon == it)       // C14 Remove This Line
+//      return;                        // C14 Remove This Line
+// C14 Start of New Code
+    if (cl->newweapon == it) {
+      c14_SetFastWIcons(ent);
+      return;  // successful
+    }
+// C14 End of New Code
+  }
+}
+
+void Cmd_WeapNext_f (edict_t *ent)
+{
+  gclient_t  *cl;
+  int      i, index;
+  gitem_t    *it;
+  int      selected_weapon;
+
+  cl = ent->client;
+
+  if (!cl->pers.weapon)
+    return;
+
+  selected_weapon = ITEM_INDEX(cl->pers.weapon);
+
+  // scan  for the next valid one
+  for (i=1 ; i<=MAX_ITEMS ; i++)
+  {
+    index = (selected_weapon + MAX_ITEMS - i)%MAX_ITEMS;
+    if (!cl->pers.inventory[index])
+      continue;
+    it = &itemlist[index];
+    if (!it->use)
+      continue;
+    if (! (it->flags & IT_WEAPON) )
+      continue;
+    it->use (ent, it);
+//    if (cl->pers.weapon == it)       // C14 Remove This Line
+//      return;                        // C14 Remove This Line
+// C14 Start of New Code
+    if (cl->newweapon == it) {
+      c14_SetFastWIcons(ent);
+      return;  // successful
+    }
+// C14 End of New Code
+  }
+}
+
+void Cmd_WeapLast_f (edict_t *ent)
+{
+  gclient_t  *cl;
+  int      index;
+  gitem_t    *it;
+
+  cl = ent->client;
+
+  if (!cl->pers.weapon || !cl->pers.lastweapon)
+    return;
+
+  index = ITEM_INDEX(cl->pers.lastweapon);
+  if (!cl->pers.inventory[index])
+    return;
+  it = &itemlist[index];
+  if (!it->use)
+    return;
+  if (! (it->flags & IT_WEAPON) )
+    return;
+  it->use (ent, it);
+// C14 Start of New Code
+  if (cl->newweapon == it) {
+    c14_SetFastWIcons(ent);
+    return;  // successful
+  }
+// C14 End of New Code
+
+}
+
+g_local.h;
+
+  float    quad_framenum;
+  float    invincible_framenum;
+  float    breather_framenum;
+  float    enviro_framenum;
+
+  int      fs_frame;              // C14 Add this line
+
+p_hud.c;
+
+  if (ent->client->pers.helpchanged && (level.framenum&8) )
+    ent->client->ps.stats[STAT_HELPICON] = gi.imageindex ("i_help");
+  else if ( (ent->client->pers.hand == CENTER_HANDED || ent->client->ps.fov > 91)
+    && ent->client->pers.weapon)
+    ent->client->ps.stats[STAT_HELPICON] = gi.imageindex (ent->client->pers.weapon->icon);
+  else
+    ent->client->ps.stats[STAT_HELPICON] = 0;
+
+  ent->client->ps.stats[STAT_SPECTATOR] = 0;
+
+// C14 Start of New Code
+  if (ent->client->fs_frame < level.framenum) {
+    ent->client->ps.stats[STAT_FAST_PREV5] = 0;
+    ent->client->ps.stats[STAT_FAST_PREV4] = 0;
+    ent->client->ps.stats[STAT_FAST_PREV3] = 0;
+    ent->client->ps.stats[STAT_FAST_PREV2] = 0;
+    ent->client->ps.stats[STAT_FAST_PREV1] = 0;
+    ent->client->ps.stats[STAT_FAST] = 0;
+    ent->client->ps.stats[STAT_FAST_NEXT1] = 0;
+    ent->client->ps.stats[STAT_FAST_NEXT2] = 0;
+    ent->client->ps.stats[STAT_FAST_NEXT3] = 0;
+    ent->client->ps.stats[STAT_FAST_NEXT4] = 0;
+    ent->client->ps.stats[STAT_FAST_NEXT5] = 0;
+    ent->client->ps.stats[STAT_FAST_NAME] = 0;
+  }
+// C14 End of New Code
+}
+
+g_spawn.c;
+
+// chase camera
+"if 16 "
+  "xv 0 "
+  "yb -68 "
+  "string \"Chasing\" "
+  "xv 64 "
+  "stat_string 16 "
+"endif "
+
+// C14 Start of New Code
+"yv 128 "
+"if 20 xv 28 pic 20 endif "
+"if 21 xv 52 pic 21 endif "
+"if 22 xv 76 pic 22 endif "
+"if 23 xv 100 pic 23 endif "
+"if 24 xv 124 pic 24 endif "
+"if 25 xv 148 yv 112 stat_string 31 yv 124 picn fselect yv 128 pic 25 endif "
+"if 26 xv 172 pic 26 endif "
+"if 27 xv 196 pic 27 endif "
+"if 28 xv 220 pic 28 endif "
+"if 29 xv 244 pic 29 endif "
+"if 30 xv 268 pic 30 endif "
+// C14 End of New Code
+;
+
+Download the fselect.pcx and put it in your pics directory.
+That's all there is to it. You're ready to go.
+This mod uses 12 of your STAT variables. Since you only have 32 to play with, and the standard quake uses 18 of them, you might want to cut down the length of your scrolling icon list from 11 to 9 or 7. Personally I wouldn't want to go less than 7. The extra STAT is used for the pickup name that appears above the cross hairs. You can get away with not using that if you centreprint the pickup name at the end of the c14_SetFastIcons and c14_SetFastWIcons functions. This saves a STAT and gives you the name nicely centred on the screen, but it does put lots of stuff into the players console history, which could be annoying.
+
+I hope this is useful,

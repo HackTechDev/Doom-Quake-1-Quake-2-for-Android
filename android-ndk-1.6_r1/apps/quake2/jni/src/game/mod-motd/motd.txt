@@ -1,0 +1,165 @@
+Quake DeveLS - Message Of The Day
+
+Author: SumFuka
+Difficulty: Easy
+
+
+This is what you see when you connect to my server.
+
+Ok ok I lied about doing laser tag next... our quake2 server needs a MOTD (Message Of The Day - the welcome message) ! Lets open up game.h and go to line 80. Have a look at some of the game interface functions that John Carmack has made for us to play with :
+
+ //
+// functions provided by the main engine
+//
+typedef struct
+{
+	// special messages
+	void	(*bprintf) (int printlevel, char *fmt, ...);
+	void	(*dprintf) (char *fmt, ...);
+	void	(*cprintf) (edict_t *ent, int printlevel, char *fmt, ...);
+	void	(*centerprintf) (edict_t *ent, char *fmt, ...);
+	void	(*sound) (edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
+	void	(*positioned_sound) (vec3_t origin, edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
+	...
+	...
+	...
+
+Everything in the curly brackets after the 'typedef struct' is a function we can use in the game. For example, lets look at the function bprintf:
+
+ 	void	(*bprintf) (int printlevel, char *fmt, ...);
+
+The void on the left simply says that the function does not return anything... in C a function can return a string, an integer, something else, or nothing (void).
+
+The function name bprintf appears next, enclosed in brackets with a * in front. Don't worry about the brackets and the star, they are there because the function is being listed in the game_import_t structure. In other words, the bracket and star are there because of the way the function is being packaged in neat little game interface (something that only a purely-brilliant(tm) programmer like John Carmack would do !... it makes the code look hard here now, but it makes the quake2 codebase more modularized and robust).
+
+After the function name comes the function parameters. bprint has at least 2 parameters, the printlevel (which is an integer), the format string (fmt, which is a string) and the ... means more parameters may be supplied to this function. A semi-colon terminates the function description.
+
+Lets SumUp some other functions :
+
+    * bprintf: broadcast a message to all players at a specified printlevel (priority)
+    * dprintf: print a debug message on the server log, useful for mod development.
+    * cprintf: print a message to one player
+    * centerprintf: print a centered message to one player
+    * sound: play a sound for a specified player, in a certain channel at a certain volume
+    * positioned_sound: same as above, but using 3d effects 
+
+How do I use the game interface functions ?
+
+John Carmack is God. He has made it so easy :
+
+ 	gi.bprintf (PRINT_MEDIUM, "Hi there people !\n");
+
+...the line above will print a message to all players in the game saying "Hi there !". The game interface (gi) is available to us at all times when we might need it.
+
+Exercise 1:
+
+Try writing down a line that will play a sound to the entity 'self', on the CHAN_BODY channel, with sound index 7, at full volume (volume is a floating point number between 0 and 1), at ATTN_NORM attenuation, with 0 timeoffs.
+
+(answer at bottom of page. DON'T LOOK YET ! Try it first, really).
+
+Welcome, trooper !
+
+Ok lets print a little welcome message ! Open up p_client.c and go to line 719. Find this line :
+
+ 	gi.bprintf (PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
+
+and add a line below it like this :
+
+ 	gi.bprintf (PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
+	gi.centerprintf (ent, "Welcome, trooper !\n\nGood luck, you'll need it\n");
+
+The \n is a newline character. Notice how we used a double '\n\n' after the '!'... the first \n terminates the "Welcome trooper !" line and the second \n leaves a blank line. Always end your strings with a \n.
+
+Compile and install your gamex86.dll in your c:\quake2\test directory. Run quake2 in deathmatch mode. You can do this from the command line with
+
+ 	c:\quake2\quake2.exe +set game "test" +set deathmatch 1 +map base1
+
+(I have a shortcut on my desktop for this...)
+
+
+You should see this !
+
+Lets read the motd from a file
+
+Want to change the motd ? Well we obviously don't want to have to recompile the server each time we change it ! Let's put the motd in a text file and read it from within the quake2 code. That way we can change the motd every day without recompiling the dll, and we can even change the motd whilst the quake2 server running !
+
+Go to p_client.c again and replace the WHOLE ClientBeginDeathmatch function with this one :
+
+ /*
+=====================
+ClientBeginDeathmatch
+
+A client has just connected to the server in 
+deathmatch mode, so clear everything out before starting them.
+=====================
+*/
+void ClientBeginDeathmatch (edict_t *ent)
+{
+	// STEVE added these 3 local variables
+	FILE *motd_file;
+	char motd[500];
+	char line[80];
+
+	G_InitEdict (ent);
+
+	InitClientResp (ent->client);
+
+	// locate ent at a spawn point
+	PutClientInServer (ent);
+
+	// send effect
+	gi.WriteByte (svc_muzzleflash);
+	gi.WriteShort (ent-g_edicts);
+	gi.WriteByte (MZ_LOGIN);
+	gi.multicast (ent->s.origin, MULTICAST_PVS);
+
+	gi.bprintf (PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
+
+	// STEVE changed this bit : read the motd from a file
+	if (motd_file = fopen("motd.txt", "r"))
+	{
+		// we successfully opened the file "motd.txt"
+		if ( fgets(motd, 500, motd_file) )
+		{
+			// we successfully read a line from "motd.txt" into motd
+			// ... read the remaining lines now
+			while ( fgets(line, 80, motd_file) )
+			{
+				// add each new line to motd, to create a BIG message string.
+				// we are using strcat: STRing conCATenation function here.
+				strcat(motd, line);
+			}
+
+			// print our message.
+			gi.centerprintf (ent, motd);
+		}
+		// be good now ! ... close the file
+		fclose(motd_file);
+	}
+
+	// make sure all view stuff is valid
+	ClientEndServerFrame (ent);
+}
+
+Now go and create a text file called motd.txt in your C:\QUAKE2 directory. Mine looks like this :
+
+ Welcome to SumFuka's server !
+
+This week Clan Manical have
+a match versus the BiPS
+(Bananas in pyjamas)
+
+
+Lock and Load, boys.
+
+Now you can run a quake2 server and change the motd whilst it is still running, just by modifying motd.txt. Cool huh ? Next week... Lets do different player classes...
+
+Tutorial by SumFuka
+
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question? Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for there great help and support with hosting.
+Best viewed with Netscape 4 or IE 3

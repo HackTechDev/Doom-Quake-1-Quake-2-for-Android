@@ -1,0 +1,359 @@
+QMENU : In Game Menuing For Q2 Mods
+© 1998, Online Gaming Technologies
+
+
+
+
+What is QMENU:
+QMENU is a new way to add easy to use menus to any mods for Quake 2.  By utilizing the inventory and help systems already in Quake 2, QMENU allows you to build menus that the players can actually scroll through the options.
+
+Forget hard to remember console commands or lame centerprintfs for display.  QMENU gives you a professional looking look without the hassle.
+
+
+Legal:
+QMENU is copyright 1998, by Online Gaming Technologies.  We have released the source code in to the community as both a time saver and teaching tool.  The first mod we know of that used this type of menuing system was Rocket Arena so credit to them for the idea.  However all code is original.
+
+Anyone creating free mods for Quake 2 may use this code.  If you wish to use it in a commercial ventures, you must contact us for terms first.  We can be reached at :  qmenu@ogt.net!  This includes new mods, or inclusion on a shareware/freeware CD.
+
+
+Files includes with this package:
+The QMENU package includes the following files:
+
+	QMENU.C		- The original C source code
+	QMNEU.H		- The original C header file
+	QMENU.DOC		- This documentation
+	QMEX.ZIP		-  Full source code to the example
+
+Note, the example was compiled with Borland's C++ 5.0
+
+If you need Help:
+QMENU is an unsupported product.  If you find a bug in it, please contact us so we can fix it.  If you use it, please let us know.
+
+If you need help with QMENU or you are having trouble integrating it with your current mods, drop us a line.  We can't guarantee we can solve your problem, but we will try.  Simply send email to:
+
+qmenu@ogt.net
+
+Using QMENU in your mod:
+QMENU is fairly easy to add support for.  We have put most of the code in separate .c/.h files for easy use.
+
+You will however need to make the following changes to the general Quake2 source in order for QMENU to work.  Of course and module that uses QMENU or is changed needs to have #include "qmenu.h" added to it's includes.
+
+G_LOCAL.H (this does NOT need the #include "qmenu.h")
+
+Locate the gclients_s structure definition (around line 360).  After showhelpicon is defined, added the following:
+
+   // ++QMENU++ Handles the menu
+
+   qboolean showmenu;	// Is the menu being shown
+   qboolean showmsg;		// Is a message box being shown
+
+   int	menu_choice;		// What's the current choice
+   int	menu_item_count;	// how many items in the menu
+
+   char *menu_title; 		// the title for the menu
+   char *menu_items[11];	// The item descriptions
+
+
+
+   // Holds a pointer to the menu selection handler for this player
+
+   void (*usr_menu_sel)(edict_t *ent, int choice); 
+
+What does this code do.  Each player needs to be able to have his/her own menu information.  This adds the information to the client structure.  We chose this structure because it doesn't get blanked as often as the persistent area.
+The most important part here is the "void (*usr_menu_sel)(edict_t *ent, int choice);" declaration.  This defines a pointer to a function that will handle all selections on your menu.  NEVER CALL Menu_Open (see QMENU Functions) without setting this to an actual function in your code.  Failure to do so will cause a crash.
+  
+
+
+
+
+
+
+
+
+
+
+G_CMDS.C 
+
+There are several changes that are needed in this source file.  Located the function SelectNextItem and added this to the very beginning of the function:
+
+   // ++QMENU++
+   //
+   // See if the menu is visible, and if it is, handle it accordingly.
+
+   if (ent->client->showmenu)
+   {
+     Menu_Dn(ent);
+     return;
+   }
+
+Now locate the function Select_Prev_Item and add:
+
+   // ++QMENU++
+   //
+   // See if the menu is visible, and if it is, handle it accordingly.
+
+   if (ent->client->showmenu)
+   {
+     Menu_Up(ent);
+     return;
+   }
+
+These two changes allow the menu system to use the Next Inventory and Previous Inventory keys to move through the menus.
+
+Now locate the function Cmd_InvUse_f and add:
+
+// ++QMENU++
+//
+// if we are in menu mode, call the menu handler.
+
+   if (ent->client->showmenu)
+   {
+      Menu_Sel(ent);
+      return;
+   }
+
+This code setups up the Use Inventory key to act as our select key for the menu system.
+
+Finally, find the function ClientCommand and add the following to the command list:
+
+   else if (Q_stricmp (cmd, "menu") == 0)
+     Menu_Hlp(ent);
+
+This sets up a help message that's displayed to the console (or screen) detailing how to use the menuing system.  This message can be changed in the qmenu.c file.  It is not a critical change, but it's nice to offer simple help.
+
+P_VIEW.C
+
+In this module, we need to fix some side effects of the menuing system.  Find the function ClientEndServerFrame (it's should be the last function).  Before I show you the changes, I need to explain them.  Notice the lines (at the very bottem)
+
+	// if the scoreboard is up, update it
+	if (ent->client->showscores && deathmatch->value && !(level.framenum & 31))
+{
+		DeathmatchScoreboardMessage (ent, ent->enemy);
+		gi.unicast (ent, false);
+}
+
+This bit of code is checked for each client frame.  It says that if the scoreboard is up in DM mode, update it.  Unfortunately we use showscores to bring up our menus.  So we need to change this.
+
+
+
+	// if the scoreboard is up, update it
+
+	if (ent->client->showscores && deathmatch->value && !(level.framenum & 31) &&
+!(ent->client->showmenu) && !(ent->client->showmsg))
+
+{
+		DeathmatchScoreboardMessage (ent, ent->enemy);
+		gi.unicast (ent, false);
+	}
+
+   	else if (!ent->client->showscores && (ent->client->showmenu ||
+             			                            ent->client->showmsg))
+{
+Menu_Close(ent);
+}
+
+What have we done.  In the first statement, we only update the deathmatch scores if the menu or the message window are not showing.  Without this, your menu would show for a second, then switch to the scores.  This is unacceptable.
+
+The second part (the else if) is very important.  Quake2 is hard coded (at least I couldn't find it) to set showscores to false when you press ESC.  Now this wouldn't be so bad (ESC should cancel menus) but it would leave the menuing system in an unstable state.  What we do here is alter it so that if you press ESC, it will gracefully close the menu system (freeing up memory, etc).
+
+
+
+P_CLIENT.C
+
+In this module, you need to locate the function ClientConnect.  This function is called when a client tries to connect to the server.  Change the end of the function to say:
+
+   Menu_Init (ent);
+   return true;
+
+
+G_MAIN.C
+
+This is the last module that needs changes.  Find the function EndDMLevel and place the following code at the very beginning of the function.
+
+int i;
+
+// ++QMENU++
+
+for (i=0 ; i<game.maxclients ; i++)
+	{
+		ent = g_edicts + 1 + i;
+Menu_Close(ent);
+}
+
+This will free up all resources when the level ends.  This is a must since other players may end the level while a player is at the menu.
+
+
+
+
+QMENU functions:
+The following new functions are available once QMENU has been integrated in to your mod.  All functions take a parameter of edict_t.  
+
+void Menu_Hlp(edict_t *ent)
+This is the main help function.  It will be displayed when the player type "cmd menu" at the console.
+
+
+void Menu_Msg(edict_t *ent,char *message)
+This is the function used to display a static message to the screen.  It uses the inventory window inside Quake 2 (as do all QMENU menus).  This window can support 13 lines by 27 cols.  If your test is larger than 27 cols, it will wrap around.  If there are more than 13 lines worth of data the remainder is truncated. Menu_Msg looks for "\n" in the message to determine when to start a new line.
+
+void Menu_Init(edict_t *ent)
+The Menu_Init function should be called when a player first connects to a server.
+
+void Menu_Clear(edict_t *ent)
+You should never need to call this function directly unless you are expanding on QMENU.  This function all free up all allocated resources for player.  It gets called by several other functions.  Menu_Clear will also reset many of the internal variables.
+
+void Menu_Add(edict_t *ent, char *text)
+This function is used to add a new menu item to the list.  Currently, QMENU cannot support more than 11 items.  This is a limitation of the inventory screen (11 items + 1 title + 1 seperator bar = 13 lines).  Adding the ability to go through more items would not be too dificult if someone wished to do it.
+
+Unlike the Menu_Msg command, you only have 21 characters to work with.  The menu itself adds 3 characters to each side of your item.  This limitation would be preaty easy to work around.
+
+
+void Menu_Title(edict_t *ent, char *text)
+This function is used to set the title of the menu.  If you open a menu without setting a title, a default title will be used.  The title will be centered on the top line of the menu and you have a maximum of 27 characters to work with.
+
+void Menu_Open(edict_t *ent)
+This is the work horse of QMENU.  Once this function is called, the menu will be displayed on the screen.  From that point forward (until it's closed) the player can use the Quake 2 inventory controls to select the different items on the menu.
+
+A player can at any time press ESC to abort from a menu.  If ESC is pressed the user menu handler is not called, but all resources are automaticlly cleaned up.
+
+If you are developing your own menu system (or expanding on ours) Menu_Open can be called multiple times without problem.  This is how we display handle updating the display when a player moves around the menu.
+
+It's important to remember that you MUST manually set the User Selection function before calling Menu_Open.  Failure to do so may result in a crash.
+
+
+void Menu_Close(edict_t *ent)
+This function is probably the most called.  It will close any open menu or message, freeing up all resources.  It can be called at anytime, even if there isn't an active window or message without harm.
+
+
+
+
+
+void Menu_Up(edict_t *ent)
+void Menu_Dn(edict_t *ent)
+Unless you are adding to QMENU or developing your own custom menu, you will never need to deal with these two functions.  They are called by the Next_Inventory and Prev_Inventory commands.  The update the new position in the menu, and then call Menu_Open.
+
+void Menu_Sel(edict_t *ent)
+This function gets called when a player presses the use key.  It closes the current menu (if any) and then executes the user selection function.
+
+
+What is the User Selection Function
+So you have QMENU installed, and you want to make it work.  But how do you know what item has been selected?  QMENU makes available the User Selection Function.  This is defined in the Client structure.  Remember adding the code:
+
+  void (*usr_menu_sel)(edict_t *ent, int choice); 
+
+This is a pointer to a function. When the user presses the use key when a menu is on the screen, QMENU's Menu_Sel function is called.  Let's look at that function in it's whole form.
+
+void Menu_Sel(edict_t *ent)
+{
+  int sel;
+
+  sel = ent->client->menu_choice;
+
+  Menu_Close(ent);
+  ent->client->usr_menu_sel(ent,sel);  // Make the call
+  ent->client->usr_menu_sel=NULL;
+
+} // Menu_Sel
+
+First, it saves the current menu choice to a temporary variable.  This is important because the Menu_Close command will reset the menu information for this player back to the default (including the actual menu choice).  We must do this to allow for menu's that open other menus.
+
+The next thing we do, is call the user selection function (remember the pointer to the function we defined in the client structure).  We pass to the user selection function 2 parameters, the current entity who pressed use, and which choice they were on.
+
+
+
+So how do you create your own user function.  It's simple.  Just define a function in your code with the same parameters as the user function.  For example:
+
+void MyUserFunction(edict_t *ent, int choice)
+{
+   gi.bprintf"(PRINT_HIGH,"Your choice was %I",choice);
+}
+
+Above is a very simple user selection function that will simply display to everyone what menu option you picked.
+
+Why did we choose to work it this way?  This allows for multiple menu handlers in your code.  This makes it very simple to implement menus that open other menus without having to resort to using 1 hacked up handler.
+
+
+Lets Make an Example
+The best way to learn how to use QMENU is to create a quick real world example.  Start a new project (using whatever compiler your using) and follow the steps under Using QMENU in your mod.  Make sure you include the QMENU.C in your project or make file.  This example can be found in the QMEX.ZIP file in this archive.
+
+Our little sample project is going to be a quick modification that allows you to pick your wave from a menu of all the different waves.  This is a good quick example of how QMENU works.
+Once you have QMENU integrated in to your basic code we need to setup the u.  We are going to add a console command called "mywave" that can be bound to a key.  When mywave is executed, a menu will appear with all the different wave types.  When the user selects a wave, it will close the menu and the player will perform the wave.
+
+The first thing we need to do is create our wave command.  Open g_cmds.c
+and find the function ClientCommand.  The ClientCommand function (for those of you who do not know) parses the console input and then calls the proper command.
+
+We want to register our command, so near the end of the list but before the final ELSE (I suggest adding it right before the gameversion command). we want to add the code:
+
+else if (Q_stricmp (cmd, "mywave") == 0)
+     Cmd_MyWave_f(ent);
+
+
+
+
+Once we have registered our command, we need to create the function that handles it.  We will place this function right above ClientCommand in the Q_CMDS.C source file. This function will setup the menu and open it.  Let's look at it first.
+
+void Cmd_MyWave_f(edict_t *ent)
+{
+
+   // Check to see if the menu is already open
+
+   if (ent->client->showscores || ent->client->showinventory || 
+        ent->client->showmenu || ent->client->showmsg)
+        return;
+
+   // send the layout
+   
+   Menu_Title(ent,"Pick a Wave");
+   Menu_Add(ent,"Flip Off");
+   Menu_Add(ent,"Salute");
+   Menu_Add(ent,"Taunt");
+   Menu_Add(ent,"Wave");
+
+    // Setup the User Selection Handler
+
+   ent->client->usr_menu_sel = MyWave_Sel;
+   Menu_Open(ent);
+
+} // Cmd_MyWave_f
+
+Ok, what does this function do.  The first line simply checks to make sure there isn't already some type of window on the screen.  We need to check to make sure we don't try and popup if the scores, inventory, another menu, or a message currently there.
+
+Next we send the actual menu layout to the client.  Remember you can only have a maximum of 11 menu items.
+
+Finally we set our user selection handler function, in this case MyWave_Sel.  But before we can compile we write this function as well.  So, right about MyWave add the following code:
+
+void MyWave_Sel(edict_t *ent, int choice); 
+{
+
+	ent->client->anim_priority = ANIM_WAVE;
+
+	switch (choice)
+	{
+	case 0:
+		gi.cprintf (ent, PRINT_HIGH, "flipoff\n");
+		ent->s.frame = FRAME_flip01-1;
+		ent->client->anim_end = FRAME_flip12;
+		break;
+	case 1:
+		gi.cprintf (ent, PRINT_HIGH, "salute\n");
+		ent->s.frame = FRAME_salute01-1;
+		ent->client->anim_end = FRAME_salute11;
+		break;
+	case 2:
+		gi.cprintf (ent, PRINT_HIGH, "taunt\n");
+		ent->s.frame = FRAME_taunt01-1;
+		ent->client->anim_end = FRAME_taunt17;
+		break;
+	case 3:
+		gi.cprintf (ent, PRINT_HIGH, "wave\n");
+		ent->s.frame = FRAME_wave01-1;
+		ent->client->anim_end = FRAME_wave11;
+		break;
+	case 4:
+		gi.cprintf (ent, PRINT_HIGH, "point\n");
+		ent->s.frame = FRAME_point01-1;
+		ent->client->anim_end = FRAME_point12;
+		break;
+	}
+} // MyWave_Sel
+
+All this function does, is take the choice parameter that is passed to it from the menuing system and do the proper wave.  Now compile your source code and launch Quake2 loading your new mod of course.  

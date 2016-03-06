@@ -1,0 +1,1197 @@
+Quake DeveLS - Chase Camera v2.4b (The Original plus a few goodies)Quake DeveLS 
+- Chase Camera v2.4b (The Original plus a few goodies) 
+Author: James Williams - a.k.a: sATaN,  with additions by WarZone 
+Difficulty: Medium / Med_Hard. (Can be quite scary... :>) 
+ForeWord - James 
+I can assure you there are bugs in this, so, I'll leave it up to you to figure 
+them out, as I don't exactly like people copying and pasting from tutorials and 
+then trying to pass it off as their own work... That really shits me. This will 
+work with all code releases previous to the 3.12/3.13 point release to which the 
+source code is yet to be released. You may NOT, under any circumstances, program 
+a patch for the point release code with the code supplied here, and claim it as 
+your programming if the codebase for the point release is any different. 
+Please respect my intelligence, and my coding skills. 
+You can however stick this into your mod, or use it as a basis for a mod, but if 
+it's going to be commercial I'd like to hear about it, (mainly for interest's 
+sake) and feel free to modify it. 
+You can distribute this as much as you want, as long as this section of the 
+tutorial stays in it, and the rest of it isn't butchered. I would like people to 
+distribute it, as it was a problem that frustrated me for a while until I 
+figured it out. Other people out there are surely wanting to know how to do it 
+as well. 
+But if you use this as a base, then you must give me some sort of credit or some 
+mention, especially as it seems to be the only chasecam patch around so far. I 
+probably sound arrogant by saying that but I think it's true. 
+My email for now is frolicka@hotmail.com because I'm getting a new ISP within a 
+day or two and it's going to get cut off when I switch servers. Any comments or 
+suggestions would be appreciated and you can also reach me with ICQ. My no. is 
+6580358. 
+But have fun, and enjoy coding. It rocks, for sure! 
+James Williams. 
+ForeWord - WarZone 
+After running through the original Chase Camera tutorial I noticed several 
+aspects of the camera that could easily be improved upon to generate a much more 
+pleasing experience to those using the camera. Feel free to use my 
+additions/subtractions to James' source in your own mods, but please give both 
+myself and James credit where it is do. 
+Introduction 
+Quake I had some lovely functions... Namely, WriteEntity(), which was used for 
+WriteByte (SVC_SETVIEWPORT) which in turn was a command that the coder could use 
+for placing an external camera outside the player entity, by creating an entity 
+which was used as a target for the display. 
+Quake II has had this function removed (as such), and written in as code 
+contained in the C files. 
+The Quake II interface works thusly : 
+The client, (The human player controlling) is different from the player and so 
+therefore the characteristics which are literally existent in the entity. This 
+is a strange concept, I know. 
+There are attributes within the client tag, like 'pmove'. The pmove tag and 
+others similar in the same area, control the literal effects and think outines 
+to manipulate the main entity. 
+For instance, the "sv_gravity" cvar, effects the client gravity values in the 
+pmove, which modifies certain effects to the players velocities, origins, and 
+angles. These such client tags are applied to all player entities, and vary from 
+view angles, to the offsets and origin of the view camera. 
+
+
+The Main Coding 
+First open up the file G_LOCAL.H and go to the gclient_s structure. If you don't 
+know what that is, then go to around line 835. The lines beginning with + are 
+the lines i have added: 
+        int                     weapon_sound;
+
+
+
+        float           pickup_msg_time;
+
+
+
+        float           respawn_time;           // can respawn when time > this
+
+
+
++        //SBOF: chasecam variables
+
++        int             chasetoggle;
+
++        edict_t         *chasecam;
+
++        edict_t         *oldplayer;
+
+
+
+} gclient_t;
+EXPLANATION: 
+These new variables we just added are now accessible via 
+(entity name)->client->chasetoggle, 
+(entity name)->client->chasecam, and 
+(entity name)->client->oldplayer. 
+The chasetoggle is a number which we can use to determine whether the camera is 
+on or not, while the others are entities that are easier to access via 
+personally linked variables. The oldplayer entity is an entity which is used for 
+display purposes to the person who is using the chasecam. This we will come to 
+later. 
+
+
+NEXT STEP: 
+Still in the G_LOCAL.H file, go to the edict_s structure. Again, if you do not 
+know what I'm talking about, go to around line 870. Go to the bottom of the 
+structure and add: 
+        gitem_t         *item;                  // for bonus items
+
+
+
+        // common data blocks
+
+        moveinfo_t              moveinfo;
+
+        monsterinfo_t   monsterinfo;
+
+
+
++        //SBOF: Chasecam variables
+
++        int                     chasedist1;
+
++        int                     chasedist2;
+
+
+
+};
+
+EXPLANATION: 
+These two integer values are for the chasecam to determine distances between the 
+camera entity and the player. I shouldn't really say this, but they're not as 
+important, really, as the chasecam and oldplayer entities, nor the toggle, 
+because they are only called by one function, and are used by an entity which is 
+not a client, which therefore disables the ability to edit the chascam's 
+->client variables as the camera is NOT a client. (Human player) 
+These variables are accessed as (entity)->chasedist? and can be used for other 
+integer functions in the same (entity)->chasedist? fields. 
+
+NEXT STEP: 
+Go to the very bottom of G_LOCAL.H and add : 
+
+extern void CheckChasecam_Viewent(edict_t *ent);
+
+EXPLANATION: 
+This becomes a global function which tells the compiler that it SHOULD be define 
+later in the code and not to worry if it comes across it being mentioned before 
+the routine is defined. 
+
+
+NEXT STEP: 
+Create a file called S_CAM.C and add these lines to the file: 
+        #include "g_local.h"
+
+
+
+        void ChasecamTrack (edict_t *ent);
+EXPLANATION: 
+Adding the #include will load up the Quake II code base which contains valuable 
+information that other C files need to know so the C file can "talk" to Quake 
+II. 
+The ChasecamTrack function with no subsequent code, is for other functions that 
+require this function before the function is defined, therefore letting the 
+compiler know that the function is still yet to come and that the coder hasn't 
+forgotten to put this function in. This line should technically be placed in a 
+header file (ie, s_cam.h) and be included at the top of this file, but as it's 
+the only line needed as a header, we don't justify creating a second file for it 
+=) 
+
+
+NEXT STEP: 
+Add the creation functions for the chasecam : (to the same file) 
+
+
+        /*  The ent is the owner of the chasecam  */
+
+          void ChasecamStart (edict_t *ent)
+
+          {
+
+
+
+        /* This creates a tempory entity we can manipulate within this
+
+         * function */
+
+             edict_t      *chasecam;
+
+        
+
+        /* Tell everything that looks at the toggle that our chasecam is on
+
+         * and working */
+
+             ent->client->chasetoggle = 1;
+
+
+
+        /* Make out gun model "non-existent" so it's more realistic to the
+
+         * player using the chasecam */
+
+             ent->client->ps.gunindex = 0;
+
+        
+
+           chasecam = G_Spawn ();
+
+           chasecam->owner = ent;
+
+           chasecam->solid = SOLID_NOT;
+
+           chasecam->movetype = MOVETYPE_FLYMISSILE;
+           // Added by WarZone - Begin
+           ent->client->ps.pmove.pm_flags |= PMF_NO_PREDICTION; // this turns off Quake2's inclination to predict where the camera is going,
+                                                                                                  // making a much smoother ride
+           ent->svflags |= SVF_NOCLIENT; // this line tells Quake2 not to send the unnecessary info about the camera to other players
+           // Added by WarZone - End
+
+
+
+
+
+EXPLANATION: 
+The last four lines here will create an entity called "chasecam", make the owner 
+of the entity, "ent" (me), make the camera not solid, and let it move around 
+freely. 
+
+
+NEXT STEP: 
+Put this text into the same function at the end: 
+        /* Now, make the angles of the player model, (!NOT THE HUMAN VIEW!) be
+
+         * copied to the same angle of the chasecam entity */
+
+           VectorCopy (ent->s.angles, chasecam->s.angles);
+
+        
+
+        /* Clear the size of the entity, so it DOES technically have a size,
+
+         * but that of '0 0 0'-'0 0 0'. (xyz, xyz). mins = Minimum size,
+
+         * maxs = Maximum size */
+
+           VectorClear (chasecam->mins);
+
+           VectorClear (chasecam->maxs);
+
+        
+
+        /* Make the chasecam's origin (position) be the same as the player
+
+         * entity's because as the camera starts, it will force itself out
+
+         * slowly backwards from the player model */
+
+           VectorCopy (ent->s.origin, chasecam->s.origin);
+
+        
+
+           chasecam->classname = "chasecam";
+           chasecam->prethink = ChasecamTrack;
+
+
+
+EXPLANATION: 
+Make the chasecam entity's name be "chasecam" for paranoia reasons in case we 
+have a bug of unknown origin, and wish to trace the bug via classnames. 
+The prethink function is ChasecamTrack, which is called very frequently to keep 
+track of the position of the chasecam behind the player model. In fact the 
+prethink function is called once before every server frame is drawn, making for 
+very smooth camera operations. 
+
+
+NEXT STEP: 
+Finish the function by adding two VERY important lines: 
+           ent->client->chasecam = chasecam;     
+
+           ent->client->oldplayer = G_Spawn();
+
+        }
+
+
+EXPLANATION: 
+This will copy the client's personal chasecam entity the object we just made, 
+and create the "oldplayer" entity, which is just an object for display purposes. 
+The "oldplayer" is updated in another function which we WILL get to, later in 
+this tutorial. (I bet you're just ACHING to find out :>) 
+NEXT STEP: 
+Add in this function which becomes the think routine when the player is in 
+water. In this case, the "ent" is the chasecam entity. 
+
+
+        void ChasecamRestart (edict_t *ent)
+
+        {
+
+
+
+        /* Keep thinking this function to check all the time whether the
+
+         * player is out of the water */
+
+        /* If the player is dead, the camera is not wanted... Kill me and stop
+
+         * the function. (return;) */
+
+           if (ent->owner->health <= 0)
+
+           {
+
+              G_FreeEdict (ent);
+
+              return;
+
+           }
+
+
+
+        /* If the player is still underwater, break the routine */
+
+           if (ent->owner->waterlevel)
+
+              return;
+
+        
+
+        /* If the player is NOT under water, and not dead, then he's going to
+
+         * want his camera back. Create a new camera, then remove the old one
+
+         * that's not doing anything. We could quite easily 're-instate' the
+
+         * old camera, but I'm lazy :) */
+
+           ChasecamStart (ent->owner);
+
+           G_FreeEdict (ent);
+
+        
+
+        }
+
+
+EXPLANATION: 
+Read the comments you ignoramus! :] 
+NEXT STEP: 
+Add in the function for removing the chasecam when asked to vanish, and to call 
+the thinking function when underwater. 
+
+
+     /* Here, the "ent" is referring to the client, the player that owns the
+
+      * chasecam, and the "opt" string is telling the function whether to
+
+      * totally get rid of the camera, or to put it into the background while
+
+      * it checks if the player is out of the water or not. The "opt" could
+
+      * have easily been a string, and might have used less memory, but it is
+
+      * easier to have a string as it is clearer to the reader */
+
+        void ChasecamRemove (edict_t *ent, char *opt)
+
+        {
+
+        
+
+        /* Stop the chasecam from moving */
+
+           VectorClear (ent->client->chasecam->velocity);
+
+        
+
+        /* Make the weapon model of the player appear on screen for 1st
+
+         * person reality and aiming */
+
+           ent->client->ps.gunindex = gi.modelindex(ent->client->pers.weapon->view_model);
+
+
+
+        /* Make our invisible appearance the same model as the display entity
+
+         * that mimics us while in chasecam mode */
+
+           ent->s.modelindex = ent->client->oldplayer->s.modelindex;
+
+
+           // Added by WarZone - Begin
+          ent->svflags &= ~SVF_NOCLIENT;
+
+          if (!strcmp(opt, "background"))
+          {
+              ent->client->chasetoggle = 0;
+              G_FreeEdict (ent->client->chasecam);
+              G_FreeEdict (ent->client->oldplayer);
+              ent->client->chasecam = G_Spawn ();
+              ent->client->chasecam->owner = ent;
+              ent->client->chasecam->solid = SOLID_NOT;
+              ent->client->chasecam->movetype = MOVETYPE_FLYMISSILE;
+              VectorClear (ent->client->chasecam->mins);
+              VectorClear (ent->client->chasecam->maxs);
+              ent->client->chasecam->classname = "chasecam";
+              ent->client->chasecam->prethink = ChasecamRestart; // begin checking for emergence from the water
+     }
+          // Added by WarZone - End
+EXPLANATION: 
+If the string sent to this function is telling us to go inactive, but on because 
+that will tell all other functions looking at the toggle variable, that the 
+chasecam is not active, but is still there. Change the prethink routine to the 
+ChasecamRestart function which checks if we are out of the water. 
+
+
+NEXT STEP: 
+Continue with this function. 
+           else if (!strcmp(opt, "off"))
+
+           {
+
+               // Added by WarZone - Begin
+               if (ent->client->chasetoggle)
+               {
+                     free(ent->client->oldplayer->client); // needed??
+                     G_FreeEdict (ent->client->oldplayer);
+               }
+               ent->client->chasetoggle = 0;
+               G_FreeEdict (ent->client->chasecam);
+               // Added by WarZone - End
+
+           }
+
+        }
+
+
+EXPLANATION: 
+If the string sent to this function is NOT "background" but "off", then it is 
+telling us to TOTALLY remove the chasecamera, toggle it off, and remove the 
+display entity, which we won't need anymore. Do so. 
+NEXT STEP: 
+Gape at the amount of coding for some complicated camera manipulation, at which 
+even I am at a loss to dictate all of. Therefore, all my comments here will be.. 
+*ahem*.. brief :) 
+
+aaaaaaaaaaaaaaaaaaa
+     /* The "ent" is the chasecam */   
+
+        void ChasecamTrack (edict_t *ent)
+
+        {
+
+        
+
+        /* Create tempory vectors and trace variables */
+
+
+
+           trace_t      tr;
+
+           vec3_t       spot1, spot2, dir;
+
+           vec3_t       forward, right, up;
+
+           int          distance;
+
+           int          tot;
+
+        
+
+           ent->nextthink = level.time + 0.100;
+
+        /* if our owner is under water, run the remove routine to repeatedly
+
+         * check for emergment from water */
+
+           if (ent->owner->waterlevel)
+
+           {
+
+              ChasecamRemove (ent, "background");
+
+              return;
+
+           }
+
+        
+
+        /* get the CLIENT's angle, and break it down into direction vectors,
+
+         * of forward, right, and up. VERY useful */
+
+           AngleVectors (ent->owner->client->v_angle, forward, right, up);
+
+        
+
+        /* go starting at the player's origin, forward, ent->chasedist1
+
+         * distance, and save the location in vector spot2 */
+
+           VectorMA (ent->owner->s.origin, ent->chasedist1, forward, spot2);
+
+        
+
+        /* make spot2 a bit higher, but adding 40 to the Z coordinate */
+
+           spot2[2] = (spot2[2] + 40.000);
+
+
+
+        /* if the client is looking down, do backwards up into the air, 0.6
+
+         * to the ratio of looking down, so the crosshair is still roughly
+
+         * aiming at where the player is aiming. */
+
+           if (ent->owner->client->v_angle[0] < 0.000)
+
+              VectorMA (spot2, -(ent->owner->client->v_angle[0] * 0.6), up, spot2);
+
+
+
+        /* if the client is looking up, do the same, but do DOWN rather than
+
+         * up, so the camera is behind the player aiming in a similar dir */
+
+           else if (ent->owner->client->v_angle[0] > 0.000)
+
+             VectorMA (spot2, (ent->owner->client->v_angle[0] * 0.6), up, spot2);
+
+
+
+        /* make the tr traceline trace from the player model's position, to spot2,
+
+         * ignoring the player, with no masks. */
+
+           tr = gi.trace (ent->owner->s.origin, NULL, NULL, spot2, ent->owner, false);
+
+        
+
+        /* subtract the endpoint from the start point for length and
+
+         * direction manipulation */
+
+           VectorSubtract (tr.endpos, ent->owner->s.origin, spot1);
+
+
+
+        /* in this case, length */
+
+           ent->chasedist1 = VectorLength (spot1);
+
+        
+
+        /* go, starting from the end of the trace, 2 points forward (client
+
+         * angles) and save the location in spot2 */
+
+           VectorMA (tr.endpos, 2, forward, spot2);
+
+        /* make spot1 the same for tempory vector modification and make spot1
+
+         * a bit higher than spot2 */
+
+           VectorCopy (spot2, spot1);
+
+           spot1[2] += 32;
+
+
+
+        /* another trace from spot2 to spot2, ignoring player, no masks */
+
+           tr = gi.trace (spot2, NULL, NULL, spot1, ent->owner, false);
+
+
+
+        /* if we hit something, copy the trace end to spot2 and lower spot2 */
+
+           if (tr.fraction < 1.000)
+
+           {
+
+                VectorCopy (tr.endpos, spot2);
+
+                spot2[2] -= 32;
+
+           }
+
+
+
+        /* subtract endpos spot2 from startpos the camera origin, saving it to
+
+         * the dir vector, and normalize dir for a direction from the camera
+
+         * origin, to the spot2 */
+
+           VectorSubtract (spot2, ent->s.origin, dir);
+
+           VectorNormalize (dir);
+
+        
+
+        /* subtract the same things, but save it in spot1 for a temporary
+
+         * length calculation */
+
+           VectorSubtract (spot2, ent->s.origin, spot1);
+
+           distance = VectorLength (spot1);
+
+        
+
+        /* another traceline */
+
+           tr = gi.trace (ent->s.origin, NULL, NULL, spot2, ent->owner, false);
+
+        
+
+       /* if we DON'T hit anyting, do some freaky stuff  */
+
+           if (tr.fraction == 1.000)
+
+           {
+
+
+
+           /* subtract the endpos camera position, from the startpos, the
+
+            * player, and save in spot1. Normalize spot1 for a direction, and
+
+            * make that direction the angles of the chasecam for copying to the
+
+            * clients view angle which is displayed to the client. (human) */
+
+              VectorSubtract (ent->s.origin, ent->owner->s.origin, spot1);
+
+              VectorNormalize (spot1);
+
+              VectorCopy (spot1, ent->s.angles);
+
+        
+
+           /* calculate the percentages of the distances, and make sure we're
+
+            * not going too far, or too short, in relation to our panning
+
+            * speed of the chasecam entity */
+
+              tot = (distance * 0.400);
+
+
+
+           /* if we're going too fast, make us top speed */
+
+              if (tot > 5.200)
+
+              {
+
+                   ent->velocity[0] = ((dir[0] * distance) * 5.2);
+
+                   ent->velocity[1] = ((dir[1] * distance) * 5.2);
+
+                   ent->velocity[2] = ((dir[2] * distance) * 5.2);
+
+              }
+
+              else
+
+              {
+
+
+
+              /* if we're NOT going top speed, but we're going faster than
+
+               * 1, relative to the total, make us as fast as we're going */
+
+
+
+                 if ( (tot > 1.000) )
+
+                 {
+
+                    ent->velocity[0] = ((dir[0] * distance) * tot);
+
+                    ent->velocity[1] = ((dir[1] * distance) * tot);
+
+                    ent->velocity[2] = ((dir[2] * distance) * tot);
+
+        
+
+                 }
+
+                 else
+
+                 {
+
+
+
+              /* if we're not going faster than one, don't accelerate our
+
+               * speed at all, make us go slow to our destination */
+
+
+
+                    ent->velocity[0] = (dir[0] * distance);
+
+                    ent->velocity[1] = (dir[1] * distance);
+
+                    ent->velocity[2] = (dir[2] * distance);
+
+        
+
+                 }
+
+        
+
+              }
+
+               
+
+           /* subtract endpos;player position, from chasecam position to get
+
+            * a length to determine whether we should accelerate faster from
+
+            * the player or not */
+
+              VectorSubtract (ent->owner->s.origin, ent->s.origin, spot1);
+
+        
+
+              if (VectorLength(spot1) < 20)
+
+              {
+
+                 ent->velocity[0] *= 2; 
+
+                 ent->velocity[1] *= 2; 
+
+                 ent->velocity[2] *= 2; 
+
+        
+
+              }
+
+        
+
+           }
+
+
+
+        /* if we DID hit something in the tr.fraction call ages back, then
+
+         * make the spot2 we created, the position for the chasecamera. */
+
+           else
+
+              VectorCopy (spot2, ent->s.origin);
+
+
+
+        /* add to the distance between the player and the camera */
+
+           ent->chasedist1 += 2;
+
+
+
+        /* if we're too far away, give us a maximum distance */
+
+           if (ent->chasedist1 > 60.00)
+
+              ent->chasedist1 = 60.000;
+
+
+
+        /* if we haven't gone anywhere since the last think routine, and we
+
+         * are greater than 20 points in the distance calculated, add one to
+
+         * the second chasedistance variable
+
+
+
+         * The "ent->movedir" is a vector which is not used in this entity, so
+
+         * we can use this a tempory vector belonging to the chasecam, which
+
+         * can be carried through think routines. */
+
+           if (ent->movedir == ent->s.origin)
+
+           {
+
+              if (distance > 20)
+
+                 ent->chasedist2++;
+
+           }
+
+
+
+        /* if we've buggered up more than 3 times, there must be some mistake,
+
+         * so restart the camera so we re-create a chasecam, destroy the old one,
+
+         * slowly go outwards from the player, and keep thinking this routing in
+
+         * the new camera entity */
+
+           if (ent->chasedist2 > 3)
+
+           {
+
+              ChasecamStart (ent->owner);
+
+              G_FreeEdict(ent);
+
+              return;
+
+           }
+
+
+
+
+
+       /* Copy the position of the chasecam now, and stick it to the movedir
+
+         * variable, for position checking when we rethink this function */
+
+           VectorCopy (ent->s.origin, ent->movedir);
+
+        
+
+        }
+EXPLANATION: 
+Phew!... Don't ask me.. I just wrote it all :) 
+NEXT STEP: 
+Add in a relief step for all those people concentrating hard, a very simple 
+function for toggling the camera on and off. 
+
+
+        void Cmd_Chasecam_Toggle (edict_t *ent)
+        {
+            // Added by WarZone - Begin
+            if (!ent->waterlevel && !ent->deadflag)
+            {
+                  if (ent->client->chasetoggle)
+                       ChasecamRemove (ent, "off");
+                  else
+                       ChasecamStart (ent);
+            }
+            else if (ent->waterlevel && !ent->deadflag)
+                 gi.cprintf (ent, PRINT_HIGH, "Camera cannot be modified while in water\n");
+            // Added by WarZone - End
+        }
+
+
+EXPLANATION: 
+The "ent" here is the player, as this function is called through "cmd chasecam" 
+as typed in from the console. We are yet to get to that, but, if the chasecam is 
+on, inactive or not, we will remove it, by calling the ChasecamRemove function 
+and telling it to turn OFF completely, which cleans up all the garbage 
+variables. 
+If the chasecam is off and we DONT have anything in the chasetoggle field, 
+create us a camera entity with the ent being sent to the function being the 
+player. 
+NEXT STEP: 
+
+
+Add in the support for the oldplayer display entity, which is still in the same 
+file (s_cam.c), which is called from P_VIEW.C. 
+
+
+        void CheckChasecam_Viewent (edict_t *ent)
+
+        {
+                // Added by WarZone - Begin
+                gclient_t       *cl;
+    
+                if (!ent->client->oldplayer->client)
+                {
+                    cl = (gclient_t *) malloc(sizeof(gclient_t));
+                    ent->client->oldplayer->client = cl;
+                }
+                // Added by WarZone - End
+
+                if ((ent->client->chasetoggle == 1) && (ent->client->oldplayer))
+
+                {
+
+                        ent->client->oldplayer->s.frame = ent->s.frame;
+
+EXPLANATION: 
+The "ent" is the player. 
+If the chasecam is on, _AND_ active, and there is a display entity we can 
+update, then update the frame of the display entity, with the entity of 
+ourselves. Even though we are not using the player model, there are still 
+references to the frame we should be displaying to everyone, and we are copying 
+that frame to the vaild modelindex of the display entity, "oldplayer". The 
+addition above adds in a client structure to the "oldplayer", thus allowing us 
+to disable the client prediction on the camera, and have the "oldplayer" be used 
+for the prediction instead. This give the "oldplayer" version of your character 
+better performance in multiplayer games as well. 
+NEXT STEP: 
+Add a bit more to this routine of updating the oldplayer entity 
+
+
+                     /* Copy the origin, the speed, and the model angle, NOT
+
+                      * literal angle to the display entity */
+
+                        VectorCopy (ent->s.origin, ent->client->oldplayer->s.origin);
+
+                        VectorCopy (ent->velocity, ent->client->oldplayer->velocity);
+
+                        VectorCopy (ent->s.angles, ent->client->oldplayer->s.angles);
+
+
+
+                     /* Make sure we are using the same model + skin as selected,
+
+                      * as well as the weapon model the player model is holding.
+
+                      * For customized deathmatch weapon displaying, you can
+
+                      * use the modelindex2 for different weapon changing, as you
+
+                      * can read in forthcoming tutorials */
+
+                         // Added by WarZone - Begin
+                        ent->client->oldplayer->s = ent->s; // copies over all of the important player related information
+                        // Added by WarZone - End
+       
+                        gi.linkentity (ent->client->oldplayer);
+
+                }
+
+        
+
+        }
+
+
+
+EXPLANATION: 
+Read the comments, but the last line where it "links" the entity, makes sure 
+that the game updates the state of the oldplayer entity model. The last line 
+here is fairly important. 
+Well, that's it for "S_CAM.C". Close "S_CAM.C" and open up G_CMDS.C for the 
+implentation of toggling the chasecam. 
+
+
+NEXT STEP: 
+Scroll down to the ClientCommand() routine which handles all the... umm... 
+commands and add in these lines: 
+        else if (Q_stricmp (cmd, "wave") == 0)
+
+                Cmd_Wave_f (ent);
+
+
+
++    //SBOF: well, gee.... I'm not sure.
+
++        else if (Q_stricmp (cmd, "chasecam") == 0)
+
++                Cmd_Chasecam_Toggle (ent);
+
+
+EXPLANATION: 
+Now, this will activate the ability to type "CMD chasecam" at the console, or 
+have this bound to a key to toggle the chasecam on and off. 
+NEXT STEP: 
+Close G_CMDS.C and open P_WEAPON.C. In this file you will add in the code so 
+that when you change weapons when using the chasecam, the weapon will not appear 
+in front of you. Scroll down to the ChangeWeapon() routine (about line 175) and 
+go to the bottom of the function. Add in: 
+
+
+                ent->client->ps.gunindex = 0;
+
+                return;
+
+        }
+
+
+
+        ent->client->weaponstate = WEAPON_ACTIVATING;
+
+        ent->client->ps.gunframe = 0;
+
++        if (!ent->client->chasetoggle)
+
+                ent->client->ps.gunindex = gi.modelindex(ent->client->pers.weapon->view_model);
+
+
+
+}
+
+
+EXPLANATION: 
+This will check whether the chasecam is on, and it not, it will update the 
+weapon model you see on the screen with the model associated with your current 
+weapon. 
+NEXT STEP: 
+NB: This step is _*the*_ most important step of all. This is the step that has 
+replaced the original Quake I WriteEntity() function that many people have been 
+musing over. I have finally figured it out after months of "musing", and found 
+that the LITERAL origin of the client display which is sent to the screen, each 
+co-ordinate, MUST be multiplied by 8 to become a valid origin point in regards 
+to the viewport.
+Change: 
+        VectorAdd (v, ent->client->kick_origin, v);
+
+
+
+        // absolutely bound offsets
+
+        // so the view can never be outside the player box
+
+
+
+        if (v[0] < -14)
+
+                v[0] = -14;
+
+        else if (v[0] > 14)
+
+                v[0] = 14;
+
+        if (v[1] < -14)
+
+                v[1] = -14;
+
+        else if (v[1] > 14)
+
+                v[1] = 14;
+
+        if (v[2] < -22)
+
+                v[2] = -22;
+
+        else if (v[2] > 30)
+
+                v[2] = 30;
+
+
+
+        VectorCopy (v, ent->client->ps.viewoffset);
+
+}
+To: 
+        VectorAdd (v, ent->client->kick_origin, v);
+
+
+
+        // absolutely bound offsets
+
+        // so the view can never be outside the player box
+
+
+
+        if (!ent->client->chasetoggle)
+
+        {
+
+                if (v[0] < -14)
+
+                        v[0] = -14;
+
+                else if (v[0] > 14)
+
+                        v[0] = 14;
+
+                if (v[1] < -14)
+
+                        v[1] = -14;
+
+                else if (v[1] > 14)
+
+                        v[1] = 14;
+
+                if (v[2] < -22)
+
+                        v[2] = -22;
+
+                else if (v[2] > 30)
+
+                        v[2] = 30;
+
+        }
+
+        else
+
+        { 
+
+                VectorSet (v, 0, 0, 0);
+
+                if (ent->client->chasecam != NULL)
+
+                {
+
+                        ent->client->ps.pmove.origin[0] = ent->client->chasecam->s.origin[0]*8;
+
+                        ent->client->ps.pmove.origin[1] = ent->client->chasecam->s.origin[1]*8;
+
+                        ent->client->ps.pmove.origin[2] = ent->client->chasecam->s.origin[2]*8;
+
+                        VectorCopy (ent->client->chasecam->s.angles, ent->client->ps.viewangles);
+
+                }
+
+        }
+
+        VectorCopy (v, ent->client->ps.viewoffset);
+
+}
+
+
+EXPLANATION: 
+This will copy the origin of the chasecam to the literal pmove.origin which is 
+the origin of the display to the human using the computer, and multiply the 
+chasecamera co-ordinates by 8, thus creating a valid origin point for the view 
+camera. 
+NEXT STEP: 
+Go to the very bottom of the file, and in the very bottom of the function called 
+ClientEndServerFrame(), add this before the final "}": 
+
+        if (ent->client->chasetoggle == 1)
+
+                CheckChasecam_Viewent(ent);
+
+EXPLANATION: 
+If the chasecam is ON, *AND* active, then we need to update the "oldplayer" 
+display entity. 
+NEXT STEP: 
+Hehehe... not done yet folks. Let's open up the good ol' p_client.c file to 
+see if we can make this mod a bit more multiplayer friendly... 
+
+
+Goto the respawn function modify it as described below: 
+         void respawn (edict_t *self) 
+        { 
+        // Added by WarZone - Begin 
+                if (self->client->oldplayer) 
+                        G_FreeEdict (self->client->oldplayer); 
+                if (self->client->chasecam) 
+                        G_FreeEdict (self->client->chasecam); 
+        // Added by WarZone - End 
+        ... rest of respawn function follows (no changes) ... 
+  
+Now, goto PutClientInServer and add the indicated line: 
+  
+  void PutClientInServer (edict_t *ent) 
+  { 
+       ... 
+       // clear entity values 
+       ent->groundentity = NULL; 
+       ent->client = &game.clients[index]; 
+       ent->takedamage = DAMAGE_AIM; 
+       ent->movetype = MOVETYPE_WALK; 
+       ent->viewheight = 22; 
+       ent->inuse = true; 
+       ent->classname = "player"; 
+       ent->mass = 200; 
+       ent->solid = SOLID_BBOX; 
+       ent->deadflag = DEAD_NO; 
+       ent->air_finished = level.time + 12; 
+       ent->clipmask = MASK_PLAYERSOLID; 
+       ent->model = "players/male/tris.md2"; 
+       ent->pain = player_pain; 
+       ent->die = player_die; 
+       ent->waterlevel = 0; 
+       ent->watertype = 0; 
+       ent->flags &= ~FL_NO_KNOCKBACK; 
+       ent->svflags &= ~SVF_DEADMONSTER; 
+  +   ent->svflags &= ~SVF_NOCLIENT; 
+       ... 
+  }
+Save and exit. You're done. (I hope I haven't left anything out) 
+Some ideas to work on on your own (hehehe, two on's in a row) might be: 
+  Allowing the player to view other players with the chase camera (ala RA2) - 
+  Medium 
+  Make the camera free floating, rather than bound to the player's perspective - 
+  Hard (I think, maybe not) 
+  Try making the camera work even when in water - I am positive that this can be 
+  done, I'm just lazy... - Hard (again, it might not be that hard in reality) 
+  Add in a feature to allow the game DLL to force someone's camera to turn on in 
+  certain situations (cool effect) - Easy 
+  Add in a "zoomin" and "zoomout" feature to the chase camera to allow players 
+  to have control over how close behind the camera follows (just don't let them 
+  zoom too far out, or it'll look really crappy, try it and see what I mean. For 
+  that matter, don't let them get too close either!) - Easy 
+Have fun with this, and email me (WarZone) if you plan to use this tutorial in 
+your mod. I would like to keep track of which mods are using this, and I 
+encourage you to do so. Having a chase camera in your mod really adds an extra 
+dimention to the mod. Happy coding! 
+  
+Tutorial by sATaN  and WarZone. 
+      This site, and all content and graphics displayed on it,
+      are ©opyrighted to the Quake DeveLS team. All rights received.
+      Got a suggestion? Comment? Question? Hate mail? Send it to us!
+      Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution 
+      on 800*600.
+      Thanks to Planet Quake for their great help and support with hosting.
+      Best viewed with Netscape 4
+  

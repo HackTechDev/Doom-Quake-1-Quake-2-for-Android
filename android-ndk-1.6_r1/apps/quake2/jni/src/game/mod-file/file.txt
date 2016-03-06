@@ -1,0 +1,222 @@
+Quake DeveLS - Accessing files
+
+Author: Nathan Craig
+Difficulty: Easy/Medium
+
+The basics: If you've ever picked up a book on ANSI C you've probably seen a little bit of C's file handling capabilities. Since you can use the STL from within Quake II, let's see what we can do in the way of opening, closing, and displaying the contents of a file.
+
+Note:
+Text in red = Quake II's code
+Text in blue = Our code
+Text in gray = Comments
+
+To start, switch to your Quake II directory and use edit.com to create a new text file with the contents:
+
+Hello,
+	World!
+
+Save it as hello.txt. Next we need to give Quake II the ability to load, close, and display the contents of files. I chose to make a new module: g_fileio.c.
+
+The first order of business is to make g_fileio.c talk to Quake II's files. So, we simply add:
+
+#include "g_local.h"
+
+Not only are we talking to Quake II now, but g_local.h (through q_shared.h) also loads the STL headers assert.h, math.h, stdio.h, stdarg.h, string.h, stdlib.h, and time.h.
+
+I chose to implement three global variables: one that pointed to the file's data, one that is an array for the file's name and one that tells whether there is a file loaded or not (Note: with this architecture, you can only load one file at a time. For an example of loading multiple files see "Accessing files from Quake II: The Advanced Version").
+
+These variables are declared as:
+
+FILE *in;				           // the file
+char *filename;				        // the file's name		
+qboolean FileLoaded = false;           	// whether or not the file is loaded (defaults to no file loaded)
+
+Now, to load a file. This function takes an edict_t *ent. This is so we can know who to print the information on loading status to.
+
+void LoadFile(edict_t *ent)
+{
+	if (!FileLoaded) {	// if there is not already a file open
+	
+		filename = gi.args();	// copy the desired filename into 'filename' 
+	
+		if ((in = fopen(filename, "r")) == NULL) {	// test to see if file opened 
+			// file did not load
+			gi.cprintf (ent, PRINT_HIGH, "Could not load file %s.\n", filename);
+			FileLoaded = false;
+		}
+		else {
+			// file did load
+			gi.cprintf(ent, PRINT_HIGH, "File %s loaded.\n", filename);
+			FileLoaded = true;
+		}
+	}
+	else	// there's already a file open
+		gi.cprintf(ent, PRINT_HIGH, "File %s is already loaded.\n, filename");
+}
+
+
+This function uses the STL call fopen(). The "r" parameter denotes load a file only if it exists (don't create a new file) and for read-only purposes. Closing a file is just as simple:
+
+void CloseFile(edict_t *ent)
+{
+	if (FileLoaded) {	// if there is a file open
+		fclose(in);		// use STL to close it
+		FileLoaded = false;
+		gi.cprintf(ent, PRINT_HIGH, "File %s closed.\n", filename);	// notify user
+	}
+	else	// no file is opened
+		gi.cprintf(ent, PRINT_HIGH, "No file is currently loaded.\n");
+}
+
+This uses the C STL call fopen() with the parameter "r." Fopen() will load the file for read-only purposes and will return zero if the file does not already exist.
+
+To display the contents of a file:
+
+void ShowFile(edict_t *ent)
+{
+	int c;	// variable to hold temporary file data
+
+	if (FileLoaded) {	// if there is a file loaded
+		// this while loop completes two tasks: checks to see if we
+		// are at the end of the file, and assigns 'c' to the data
+		// at the position of the file pointer
+		while ((c = fgetc(in)) != EOF)
+			gi.cprintf(ent, PRINT_HIGH, "%c", c);	// output 'c'
+		gi.cprintf(ent, PRINT_HIGH, "\nend of %s", filename);
+	}
+	else	// no file is loaded
+		gi.cprintf(ent, PRINT_HIGH, "No file is currently loaded.\n");
+}
+
+
+This uses fgetc() to get data from the file byte by byte.
+
+Now we must integrate these functions with the rest of the Quake II code. In g_local.h, around line 704, add this:
+
+//
+// g_main.c
+//
+void SaveClientData (void);
+void FetchClientEntData (edict_t *ent);
+
+//
+// g_fileio.c
+//
+void LoadFile(edict_t *ent);
+void CloseFile(edict_t *ent);
+void ShowFile(edict_t *ent);
+
+
+Now we can access these functions from anywhere within Quake II's code. The last step, then, is to allow the user to access these commands from the console. Around line 647 of g_cmds.c, add this:
+
+	else if (Q_stricmp (cmd, "fov") == 0)
+	{
+		ent->client->ps.fov = atoi(gi.argv(1));
+		if (ent->client->ps.fov < 1)
+			ent->client->ps.fov = 90;
+		else if (ent->client->ps.fov > 160)
+			ent->client->ps.fov = 160;
+	}
+	// FILEIO
+	else if (Q_stricmp(cmd, "loadfile") == 0)
+		LoadFile(ent);
+	else if (Q_stricmp(cmd, "closefile") == 0)
+		CloseFile(ent);
+	else if (Q_stricmp(cmd, "showfile") == 0)
+		ShowFile(ent);
+
+
+
+
+
+Finally, compile the .dll (with g_fileio.c included), copy it to a subdirectory of your Quake II directory and name it "gamex86.dll." Run Quake II:
+
+quake2.exe +set game "whatever_dir_you_chose" +map base1
+
+When you enter the game, bring down the console and type:
+
+cmd loadfile hello.txt
+cmd showfile
+
+This will display the contents of hello.txt. Finally, close the file:
+
+cmd closefile
+
+Remember:
+This source could be modified and used maliciously. Don't be a loser.
+But, most importantly, have fun – and learn!
+
+Here's a complete listing of g_fileio.c for you cut and paste purposes:
+
+/*
+ * G_fileio.c
+ */
+
+// STL files are included by g_local.h
+#include "g_local.h"
+
+FILE *in;						// the file
+char *filename;					// the file's name
+qboolean FileLoaded = false;	// whether or not the file is loaded (defaults to no file loaded)
+
+void LoadFile(edict_t *ent)
+{
+	if (!FileLoaded) {	// if there is not already a file open
+	
+		filename = gi.args();	// copy the desired filename into 'filename' 
+	
+		if ((in = fopen(filename, "r")) == NULL) {	// test to see if file opened 
+			// file did not load
+			gi.cprintf (ent, PRINT_HIGH, "Could not load file %s.\n", filename);
+			FileLoaded = false;
+		}
+		else {
+			// file did load
+			gi.cprintf(ent, PRINT_HIGH, "File %s loaded.\n", filename);
+			FileLoaded = true;
+		}
+	}
+	else	// there's already a file open
+		gi.cprintf(ent, PRINT_HIGH, "File %s is already loaded.\n, filename");
+}
+
+void CloseFile(edict_t *ent)
+{
+	if (FileLoaded) {	// if there is a file open
+		fclose(in);		// use STL to close it
+		FileLoaded = false;
+		gi.cprintf(ent, PRINT_HIGH, "File %s closed.\n", filename);	// notify user
+	}
+	else	// no file is opened
+		gi.cprintf(ent, PRINT_HIGH, "No file is currently loaded.\n");
+}
+
+void ShowFile(edict_t *ent)
+{
+	int c;	// variable to hold temporary file data
+
+	if (FileLoaded) {	// if there is a file loaded
+		// this while loop completes two tasks: checks to see if we
+		// are at the end of the file, and assigns 'c' to the data
+		// at the position of the file pointer
+		while ((c = fgetc(in)) != EOF)
+			gi.cprintf(ent, PRINT_HIGH, "%c", c);	// output 'c'
+		gi.cprintf(ent, PRINT_HIGH, "\nend of %s", filename);
+	}
+	else	// no file is loaded
+		gi.cprintf(ent, PRINT_HIGH, "No file is currently loaded.\n");
+}
+
+
+Tutorial by Nathan Craig
+
+
+
+
+
+This site, and all content and graphics displayed on it,
+are ©opyrighted to the Quake DeveLS team. All rights received.
+Got a suggestion? Comment? Question? Hate mail? Send it to us!
+Oh yeah, this site is best viewed in 16 Bit or higher, with the resolution on 800*600.
+Thanks to Planet Quake for there great help and support with hosting.
+Best viewed with Netscape 4 or IE 3
